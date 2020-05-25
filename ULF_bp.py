@@ -79,7 +79,7 @@ def filtdata(yi):
     ax.set_xscale('log')
     ax.set_xlabel('f [Hz]')
     ax.set_ylabel('Gain')
-    ax.set_title(f' Bandpass filters for {label} waves')
+    #ax.set_title(f' Bandpass filters for {label} waves')
     # error raised as 1/x uses 0 from bandpass function
 
     secax = ax.secondary_xaxis('top', functions=(forward, inverse))
@@ -87,23 +87,37 @@ def filtdata(yi):
     ax.legend(loc='best')
     plt.show()
 
-    #creates multi-dim y array to store values 
+    #creates multi-dim y array to store values for later use
+    #y will have 0 to tf values down and y[i] values accross for each band of time series data 
     y=np.zeros((len(tf),len(yi)))
+    fig, ax = plt.subplots(nrows=1, figsize=(7,7))
+    #[x,y ,width, hight]
+    #positioning of subplots and axis for subplots
+    # ax1 = fig.add_axes([0.21,0.65,0.25,0.2])
+    # ax2 = fig.add_axes([0.22,0.17,0.25,0.2])
 
     for i, num in enumerate(tf):
         if i<len(tf)-1:
             #windowed time series data from butter_bandpass_filter function
             y[i] = butter_bandpass_filter(yi, 1/(tf[i+1]),1/num, fs, order=order)
-            plt.plot(x, y[i], label=label[i])
-    plt.title(f'Band-pass Filtered signal for {label} waves')
-    plt.xlabel('time (seconds)')
-    plt.legend(loc='best')
+            ax.plot(x, y[i], label=label[i])
+            # ax1.plot(x, y[i], label=label[i])
+            # ax2.plot(x, y[i], label=label[i])
+    #plt.title(f'Band-pass Filtered signal for {label} waves')
+    #ax1.set_xlim(3,tl[-1])
+    ax.set_xlabel('time (seconds)')
+    ax.set_ylabel('nT')
+    # ax1.set_xlim(375,575)
+    # ax1.set_ylim(-0.04,0.04)
+    # ax2.set_xlim(475,575)
+    # ax2.set_ylim(-0.007,0.005)
+    ax.legend(loc='best')
     plt.show()
 
     # setting up empty subplots to add in below loop
     # note that the the number of subplots has to be accounted for in the loop size
     fig, axs = plt.subplots(4,1, figsize=(12, 7), facecolor='w', edgecolor='k')
-    fig.subplots_adjust(hspace = .5, wspace=.001)
+    # fig.subplots_adjust(hspace = .5, wspace=.001)
     # ax.ravel similar to ax.flatten and combines arrays
     axs = axs.ravel()
 
@@ -113,7 +127,10 @@ def filtdata(yi):
             #spectrogram plots
             ts=((tf[i+1]) -num)
             print(ts)
-            f, t, sxx = signal.spectrogram(y[i], 1, nperseg=round(ts*0.6), window='box')
+            print(tf[i]+1)
+
+            f, t, sxx = signal.spectrogram(y[i], 1, nperseg=round(tf[i+1]), window='hamming')
+
             # fa= np.append(fa, f)
             # ta= np.append(ta, t)
             # sxxa= np.append(sxxa, sxx)
@@ -131,8 +148,8 @@ def filtdata(yi):
 
 
             axs[i].pcolormesh(t, f, sxx)
-            axs[i].set_title(label[i])
-            print('ax ranges',1/tf[i+1],1/num)
+            #axs[i].set_title(label[i])
+            # print('ax ranges',1/tf[i+1],1/num)
             axs[i].set_ylim(1/tf[i+1],1/num)
             secax = axs[i].secondary_yaxis('right', functions=(forward, inverse))
             # secax.set_yticks([np.linspace(num,tf[i+1],2)])
@@ -150,5 +167,5 @@ def filtdata(yi):
     plt.show()
 
 filtdata(y1)
-filtdata(y2)
+
     
