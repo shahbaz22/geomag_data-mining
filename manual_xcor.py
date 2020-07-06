@@ -1,19 +1,26 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
+from scipy.fftpack import fft
 
-npts = 150
 
-x = np.linspace(0, 40, npts)
+npts = 2000
 
-y = signal.gaussian(npts, std=20)
+x = np.linspace(0, 200, npts)
+
+y = signal.gaussian(npts, std=50)
 
 y1 =  5*np.sin(2*x)*y
 
 y2 = 5*np.cos(2*x)*y
-# y = signal.gaussian(npts, std=30)
+
+
+# y1 =  np.sin(5*x**1.5)
+
+# y2 = np.cos(1.2*x**2)
 
 lags = np.arange(-(x.size - 1), x.size)
+
 rlags=np.roll(lags,npts)
 # Maybe add array sizr check into loop
 # [:num] takes index values from begining up to num
@@ -112,7 +119,7 @@ ax = axs[1]
 # lags=lags[:-2]
 # ccor=ccor[:-2]
 ax.plot(lags, ccor)
-# ax.set_ylim(-1.1, 1.1)
+ax.set_ylim(-1.1, 1.1)
 ax.set_ylabel('cross-correlation')
 ax.set_xlabel('lag of y1 relative to y2')
 ax.set_title('time lagged xcorrelation (1/std(y1)*std(y2)*(N-tau) norm)')
@@ -146,7 +153,7 @@ plt.show()
 
 # Rolling window time lagged cross correlation
 
-window_size = int(np.round(npts/8)) #samples
+window_size = int(np.round(npts/60)) #samples
 t_start = 0
 t_end = t_start + window_size
 print(window_size)
@@ -165,6 +172,8 @@ while t_end <= npts:
     print(y1,'y1')
     print(y2,'y2')
     rs = xcorr(y11,y21,lags0)
+    # not taking whole period so xcor coef is off
+    print(rs, 'rs')
     # plt.plot(lags0, rs)
     # plt.show()
     print(rs.size,'rs_size')
@@ -176,20 +185,72 @@ while t_end <= npts:
 
 print(lags0,'lags')
 
-fig = plt.figure(figsize=(12, 6))
+fig = plt.figure()
 
 ax = fig.add_subplot()
 
-ax.set_title(f'Rolling window (={window_size}pts) time lagged cross correlation of wave packet')
-im=ax.imshow(rss, interpolation='nearest', aspect='auto')
+ax.set_title(f'Rolling window (={window_size} pts) time lagged cross correlation of wave packet')
+#to get time (windows) on the x axis
+im=ax.imshow(np.transpose(rss))
 
 ax.set_aspect('equal')
-ax.set_yticks(np.arange((npts/window_size)-1))
-ax.set_ylabel('windowed epochs')
-ax.set_xlabel('time lag')
+# ax.set_xticks(np.arange((npts/window_size)-1))
+ax.set_xlabel('windowed epochs')
+ax.set_ylabel('time lag')
 
-cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
+caxp = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
 # get a copy of the axes rectangle 2x2 numpy array of the form [[x0, y0], [x1, y1]].
-cbar = plt.colorbar(im, cax=cax)
+cbar = plt.colorbar(im, cax=caxp)
 cbar.set_label('Corr. coeff.')
 plt.show()
+
+#cross spectrogram of two combined signals
+
+windowpts = 210
+
+fig, axs = plt.subplots(2,1, figsize=(12, 7), facecolor='w', edgecolor='k')
+
+
+f, t, sxx = signal.spectrogram(ccor, 1, nperseg=windowpts, window='hamming')
+
+print(np.amax(f), 'f.max')
+
+fm = np.amax(f)
+
+axs[0].set_ylim(0,fm/5)
+
+print(t,'t')
+
+print(t.size,'t size')
+
+newticks = np.linspace(-np.amax(t)/2, np.amax(t)/2, t.size)
+
+print(newticks, 'nax')
+
+print(newticks.size, 'nax')
+
+# axs[0].set_xticks(np.linspace(-t.max/2, t.max/2, t.size))
+
+cax0 = axs[0].pcolormesh(newticks, f, sxx, alpha=0.7)
+
+axs[0].set_xlabel('npts')
+
+
+axs[0].set_ylabel('cross frequency Hz')
+
+axs[1].set_ylim(0,fm/5)
+
+f1, t1, sxx1 = signal.spectrogram(y1+y2, 1, nperseg=windowpts, window='hamming')
+
+cax1 = axs[1].pcolormesh(t1, f1, sxx1, alpha=0.7)
+
+axs[1].set_ylabel('frequency Hz')
+
+axs[1].set_xlabel('npts')
+
+# fig.colorbar(cax1)
+
+# fig.colorbar(cax0)
+
+plt.show()
+

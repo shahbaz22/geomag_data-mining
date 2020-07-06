@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from scipy.fftpack import fft
 from scipy import signal
 
-
 md=pd.read_csv('20200121-17-21-supermag.csv')
 md.head()
 
@@ -89,8 +88,12 @@ def filtdata(yi):
 
     #creates multi-dim y array to store values for later use
     #y will have 0 to tf values down and y[i] values accross for each band of time series data 
-    y=np.zeros((len(tf),len(yi)))
-    fig, ax = plt.subplots(nrows=1, figsize=(7,7))
+    y0=np.zeros((len(tf),len(yi)))
+    y1=np.zeros((len(tf),len(yi)))
+
+    # fig, ax = plt.subplots(nrows=1, figsize=(7,7))
+    fig, axs = plt.subplots(4,1, figsize=(12, 7), facecolor='w', edgecolor='k')
+
     #[x,y ,width, hight]
     #positioning of subplots and axis for subplots
     # ax1 = fig.add_axes([0.21,0.65,0.25,0.2])
@@ -98,20 +101,29 @@ def filtdata(yi):
 
     for i, num in enumerate(tf):
         if i<len(tf)-1:
+            ts=((tf[i+1]) -num)
+
+            c=['b', 'g', 'r', 'm']
+
             #windowed time series data from butter_bandpass_filter function
-            y[i] = butter_bandpass_filter(yi, 1/(tf[i+1]),1/num, fs, order=order)
-            ax.plot(x, y[i], label=label[i])
+            y0[i] = butter_bandpass_filter(yi, 1/(tf[i+1]),1/num, fs, order=order)
+            y1[i] = butter_bandpass_filter(y2, 1/(tf[i+1]),1/num, fs, order=order)
+            axs[i].plot(x, y0[i], label=label[i], color=c[i])
+            axs[i].plot(x, y1[i], label=label[i])
             # ax1.plot(x, y[i], label=label[i])
             # ax2.plot(x, y[i], label=label[i])
-    #plt.title(f'Band-pass Filtered signal for {label} waves')
-    #ax1.set_xlim(3,tl[-1])
-    ax.set_xlabel('time (seconds)')
-    ax.set_ylabel('nT')
-    # ax1.set_xlim(375,575)
-    # ax1.set_ylim(-0.04,0.04)
-    # ax2.set_xlim(475,575)
-    # ax2.set_ylim(-0.007,0.005)
-    ax.legend(loc='best')
+            axs[i].set_ylabel('A')
+            axs[i].set_xlabel('s')
+            axs[i].set_title(label[i], color=c[i])
+            # axs[i].set_xlim(len(x)/4, len(x)/4 + ts*20)
+
+
+
+
+    axs[3].set_xlabel('time [s]')
+    axs[3].set_title(label[3])
+
+    plt.show()
     plt.show()
 
     # setting up empty subplots to add in below loop
@@ -119,41 +131,25 @@ def filtdata(yi):
     fig, axs = plt.subplots(4,1, figsize=(12, 7), facecolor='w', edgecolor='k')
     # fig.subplots_adjust(hspace = .5, wspace=.001)
     # ax.ravel similar to ax.flatten and combines arrays
-    axs = axs.ravel()
+    # axs = axs.ravel()
 
 
     for i, num in enumerate(tf):
         if i<len(tf)-1:
             #spectrogram plots
-            ts=((tf[i+1]) -num)
-            print(ts)
-            print(tf[i]+1)
 
-            f, t, sxx = signal.spectrogram(y[i], 1, nperseg=round(tf[i+1]), window='hamming')
-
-            # fa= np.append(fa, f)
-            # ta= np.append(ta, t)
-            # sxxa= np.append(sxxa, sxx)
-
-
-            # f=f[1:-1]
-            # t=t[1:-1]
-            # sxx=sxx[1:,1:]
-            # mask = np.logical_and(f >=float( 1/tf[i+1]) , f <= float(1/num))
-            # print('mask',mask)
-            # f=f[mask]
-            # print(f)
-            # t=t[mask]
-            # sxx=sxx[[mask],[mask]]
-
+            f, t, sxx = signal.spectrogram(y0[i], 1, nperseg=round(tf[i+1]), window='hamming')
 
             axs[i].pcolormesh(t, f, sxx)
-            #axs[i].set_title(label[i])
+            axs[i].set_title(label[i])
             # print('ax ranges',1/tf[i+1],1/num)
             axs[i].set_ylim(1/tf[i+1],1/num)
+
             secax = axs[i].secondary_yaxis('right', functions=(forward, inverse))
+            
             # secax.set_yticks([np.linspace(num,tf[i+1],2)])
             # secax.set_yticklabels([f"{num}",f"{tf[i+1]}"])
+            
             secax.set_ylabel('period [s]')
 
             #axs[i].set_yscale('log')
@@ -161,7 +157,7 @@ def filtdata(yi):
             axs[i].set_ylabel('freq [Hz]')
 
 
-
+    axs[3].set_title(label[3])
 
     axs[3].set_xlabel('time [s]')
     plt.show()
