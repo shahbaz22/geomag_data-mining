@@ -1,8 +1,12 @@
-import matplotlib as mpl
-from matplotlib import pyplot as plt
-from matplotlib.patches import Wedge, Circle
+# import matplotlib as mpl
+# from matplotlib import pyplot as plt
+# from matplotlib.patches import Wedge, Circle
 import numpy as np
 from geopack import geopack, t89,t96,t01,t04
+# from datetime import timedelta
+# import datetime
+# import pandas as pd
+
 
 
 # def dual_half_circle(center=(0,0), radius=1, angle=90, ax=None, colors=('w','k','k'),
@@ -41,10 +45,13 @@ from geopack import geopack, t89,t96,t01,t04
     
 #     return ax
 
-def lvalue(obs_lat, obs_lon, ut, dirv=1):
+def apdvalue(obs_lat, obs_lon, ut, dirv=1):
 
     '''link to all var info https://github.com/tsssss/geopack/blob/master/geopack/geopack.py
-    code to find l-number for particular magnetometer station, ut in sec'''
+    code to find l-number for particular magnetometer station, ut in sec 
+    | par |  1   |    2    |    3    |    4    |    5    |    6    |  7   |
+    | Kp  | 0,0+ | 1-,1,1+ | 2-,2,2+ | 3-,3,3+ | 4-,4,4+ | 5-,5,5+ | > 6- |'''
+
 
     
     ps = geopack.recalc(ut)
@@ -64,7 +71,7 @@ def lvalue(obs_lat, obs_lon, ut, dirv=1):
     x_gsm,y_gsm,z_gsm = geopack.geogsm(x_gc,y_gc,z_gc,1)
     # print('GSM for station: ', x_gsm,y_gsm,z_gsm,' R=',np.sqrt(x_gsm**2+y_gsm**2+z_gsm**2))
 
-    x,y,z,xx,yy,zz = geopack.trace(x_gsm,y_gsm,z_gsm,dir=dirv,rlim=100,r0=.99999,parmod=2,exname='t89',inname='igrf',maxloop=10000)
+    x,y,z,xx,yy,zz = geopack.trace(x_gsm,y_gsm,z_gsm,dir=dirv,rlim=100,r0=.99999,parmod=5,exname='t89',inname='igrf',maxloop=10000)
 
 
     # The x-axis of the GSM coordinate system is defined along the line connecting the center of the Sun to the center of the Earth.
@@ -79,7 +86,44 @@ def lvalue(obs_lat, obs_lon, ut, dirv=1):
     l=np.amax(absxx)
 
 
-    return print(l)
+    return l
 
-# lvalue(62.82, 267.89, 15) #RAN
+apdvalue(62.82, 267.89, 1332595679)
+
+# time range in hours
+# th=24
+
+# lvs = []
+# t = []
+# t1 = []
+
+# # default values set for intial RAN data set using UTC time and shifting x axis
+# for i in np.arange(0,th,1):
+#     print(i)
+#     lvs.append(apdvalue(62.82, 267.89, 1332584880 +i*3600))
+        
+#     ts = pd.to_datetime('2012-03-24 10:28:00', format='%Y/%m/%d %H:%M:%S') - timedelta(hours=6.1 - i)
+
+#     ts = str(ts)
+
+#     ts = ts.rsplit(' ')
+
+#     t.append(ts[1])
+
+#     t1.append(4.28+i)
+
+#     print(ts)
+
+
+# rt=np.arange(0,th,1)
+# r=np.arange(0,th,1)
+
+
+# plt.plot(t1,lvs)
+# plt.xticks(t1, t, rotation=70) # copy over the locations of the x-ticks from the first axes
+# plt.xlabel('time [24 hour]')
+# plt.ylabel('Apex distance (Re)')
+# plt.savefig("ApexdistanceRANintialdatakp26.png",bbox_inches='tight')
+# plt.show()
+
 

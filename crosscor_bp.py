@@ -4,8 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.fftpack import fft
 from scipy import signal
 from scipy.signal import butter, lfilter, freqz
-
-
+from crosscor_bp2 import dateftutc, dateflocal, apexd
 
 def butter_bandpass(lowcut, highcut, fs, order):
     #function to plot butterworth bandpass filter coefficents
@@ -36,16 +35,9 @@ def xcorr(x, y, lags1):
 
     corr = np.correlate(x, y, mode='full')  # scale = 'none'
 
-    # if scale == 'biased':
-    #     corr = corr / x.size
-    # elif scale == 'unbiased':
-    corr = corr/(x.std() * y.std()*(x.size - abs(lags1)))
-    print('x.size', x.size)
-    print('corr.size', corr.size)
-    print(corr)
-    # print(corr[-30:-1])
-    # print(x.size - abs(lags))
-    # divides smaller aplitdes by smaller norm factor
+
+    corr = corr/(x.std() * y.std() * (x.size - abs(lags1)))
+
     return corr
 
 #function (tranforms) for T,f duel axis
@@ -60,6 +52,9 @@ def inverse(x):
 md = pd.read_csv('20200121-17-21-supermag.csv')
 print(md.head())
 
+# time series to be x correlated
+mdxc = pd.read_csv('20200722-17-06-supermag.csv', header = 0)
+
 print(md.dtypes)
 # index can be used as seconds count
 
@@ -73,17 +68,17 @@ y1 = md['N']
 y2 = md['E']
 y3 = md['Z']
 
-plt.plot(x,y1,label='N')
-plt.plot(x,y2,label='E')
-plt.plot(x,y3,label='Z')
+y11 = mdxc['dbn_nez']
+y22 = mdxc['dbe_nez']
+y33 = mdxc['dbz_nez']
 
-plt.legend()
-plt.ylabel('nT')
-plt.xlabel('seconds')
-plt.show()
-# print(x)
+# label data
+ld = pd.read_csv('supermag-stations.csv', delimiter=',')
 
+longg = float(ld['RAN'].iloc[0])
+latt = float(ld['RAN'].iloc[1])
 
+dateutc= md['Date_UTC']
 
 #Pc wave period ranges and labels
 label = ['Pc2','Pc3','Pc4','Pc5']
@@ -97,27 +92,21 @@ def tlxcdata( s1, s2 ):
     fs = 1
     order=3
 
-    y1 = np.zeros((len(tf),len(s1)))
+    y11 = np.zeros((len(tf),len(s1)))
 
-    y2 = np.zeros((len(tf),len(s2)))
-    # fig, ax = plt.subplots(nrows=1, figsize=(7,7))
+    y22 = np.zeros((len(tf),len(s2)))
     fig, axs = plt.subplots(4,1, figsize=(12, 7), facecolor='w', edgecolor='k')
 
     fig.tight_layout(pad=3.0)
-
-    #[x,y ,width, hight]
-    #positioning of subplots and axis for subplots
-    # ax1 = fig.add_axes([0.21,0.65,0.25,0.2])
-    # ax2 = fig.add_axes([0.22,0.17,0.25,0.2])
 
     for i, num in enumerate(tf):
         if i<len(tf)-1:
             ts=((tf[i+1]) -num)
 
             #windowed time series data from butter_bandpass_filter function
-            y1[i] = butter_bandpass_filter(s1, 1/(tf[i+1]),1/num, fs, order=order)
+            y11[i] = butter_bandpass_filter(s1, 1/(tf[i+1]),1/num, fs, order=order)
 
-            y2[i] = butter_bandpass_filter(s2, 1/(tf[i+1]),1/num, fs, order=order)
+            y22[i] = butter_bandpass_filter(s2, 1/(tf[i+1]),1/num, fs, order=order)
 
     #----setting up tlxc
 
@@ -133,96 +122,83 @@ def tlxcdata( s1, s2 ):
             c = ['b', 'g', 'r', 'm']
 
             #windowed time series data from butter_bandpass_filter function
-            tlxc[i] = xcorr(y1[i],y2[i],lags)
-            axs[i].plot(lags, tlxc[i], label=label[i], color=c[i])
+            tlxc[i] = xcorr(y11[i],y22[i],lags)
+            axs[i].plot(lags, tlxc[i], color=c[i])
 
             axs[i].set_ylabel('corr. coef.')
             axs[i].set_xlabel('npts')
-            axs[i].set_title(label[i], color=c[i])
-            # axs[i].set_ylim(-1,1)
+            # axs[i].set_title(label[i], color=c[i])
+            axs[i].set_ylim(-1,1)
             # axs[i].set_xlim(len(lags)/6, len(lags)/6 + ts*20)
 
 
 
     plt.show()
 
-    # Rolling window time lagged cross correlation
-
-    window_size = 150 #samples
-    t_start = 4000
-    t_end = t_start + window_size
-    print(window_size)
-
-
-    rss=[]
-    while t_end <= len(x)-4000:
-        y11 = y1[1, t_start:t_end]
-        y21 = y2[1, t_start:t_end]
-        lags0 = np.arange(-(y11.size - 1), y11.size)
-
-        rs = xcorr(y11,y21,lags0)
-        # not taking whole period so xcor coef is off
-        print(rs, 'rs')
-        # plt.plot(lags0, rs)
-        # plt.show()
-        print(rs.size,'rs_size')
-        rss.append(rs)
-        t_start = t_start + window_size
-        print(t_start,'tstart')
-        t_end = t_end + window_size
-        print(t_end, 'tend')
-
-    print(lags0,'lags')
-
-    fig = plt.figure()
-
-    ax = fig.add_subplot()
-
-    ax.set_title(f'Rolling window (={window_size} pts) time lagged cross correlation of wave packet')
-    #to get time (windows) on the x axis
-    im=ax.imshow(np.transpose(rss))
-
-    ax.set_aspect('equal')
-    # ax.set_xticks(np.arange((npts/window_size)-1))
-    ax.set_xlabel('windowed epochs')
-    ax.set_ylabel('time lag')
-
-    caxp = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
-    # get a copy of the axes rectangle 2x2 numpy array of the form [[x0, y0], [x1, y1]].
-    cbar = plt.colorbar(im, cax=caxp)
-    cbar.set_label('Corr. coeff.')
-
-    plt.show()
 
 
     fig, axs = plt.subplots(4,1, figsize=(12, 7), facecolor='w', edgecolor='k')
-    fig.tight_layout(pad=3.0)
+    fig.subplots_adjust(hspace = .5, wspace=.5)
 
     for i, num in enumerate(tf):
         if i<len(tf)-1:
             #spectrogram plots
+            # window nperseg must be at least 2*period due to xcor
+            wsize= round(2*(tf[i+1]-tf[i]))
 
-            f, t, sxx = signal.spectrogram(tlxc[i], 1, nperseg=round(3*tf[i+1]), window='hamming')
+            f, t, sxx = signal.spectrogram(tlxc[i], 1, nperseg=wsize, window='hamming')
+
+            print('x',round(len(x),-3))
 
             axs[i].pcolormesh(t, f, sxx, alpha=0.9)
-            axs[i].set_title(label[i])
-            # print('ax ranges',1/tf[i+1],1/num)
-            axs[i].set_ylim(1/tf[i+1],1.2/num)
+
+            left, right = axs[i].get_xlim()
+
+            xlim = round(len(x), 1)
+
+            xt = np.linspace(round(left,-2),round(right,-2), 17,endpoint=True)
+            # xt = np.linspace(0,2*xlim, 17,endpoint=True)
+
+            # xl=np.linspace(-xlim, xlim, 17, endpoint=True)
+            xl = np.linspace(-round(right,-2)/2,round(right,-2)/2,17,endpoint=True)
+
+
+            # exeption to better tune y limits for second subplot
+            if i ==1:
+
+                axs[i].set_ylim(1/tf[i+1],(1-i*0.55)/num)
+            else:
+
+                axs[i].set_ylim(1/tf[i+1],(1-i*0.1)/num)
 
             secax = axs[i].secondary_yaxis('right', functions=(forward, inverse))
-            
-            # secax.set_yticks([np.linspace(num,tf[i+1],2)])
-            # secax.set_yticklabels([f"{num}",f"{tf[i+1]}"])
-            
-            secax.set_ylabel('period [s]')
 
-            #axs[i].set_yscale('log')
+            axs[i].set_xticks(xt)
+
+            axs[i].set_xticklabels(xl.astype(np.int))
+         
+            axs[i].set_xlabel('time lag [s]')
+
+            secax.set_ylabel('period [s]')
 
             axs[i].set_ylabel('freq [Hz]')
 
+            # plot vertical lines for apex distance (use values in UTC at relative local time)
+        # for i in [1,2,3]:
+        #     ax2.axvline(x=indx[i], color='red')
+        #     vvalue = axs[i].get_ylim()
+        #     # print(vvalue)
+        #     ax2.annotate(s=f'{apexd(latt,longg, dateu.iloc[i])}', xy =((1/4 * (i+1)) -0.23,0.55), xycoords='axes fraction', verticalalignment='center', horizontalalignment='center' , rotation = 270, color='red', weight='bold')
+
+
+        for i, label in enumerate(('(a)', '(b)', '(c)', '(d)')):
+            axs[i].text(0.05, 0.95, label, transform=axs[i].transAxes,
+            fontsize=16, va='top', color='w')
+
+    # plt.savefig(f'tlxcorspec_{s1.name}{s2.name}_comp_Pc')
 
     plt.show()
 
-tlxcdata(y1,y2)
+tlxcdata(y1,y1)
 
     
