@@ -9,6 +9,17 @@ from scipy.signal import butter, lfilter, freqz, find_peaks
 from datetime import timedelta
 import time
 from PyAstronomy import pyaC # for zero crossing intrapolation
+import networkx as nx
+import matplotlib.pyplot as plt
+import dynetx as dn
+import itertools
+
+
+# initialising directed and undirected network arrays for all Pc bands
+
+dna = [dn.DynDiGraph(),dn.DynDiGraph(),dn.DynDiGraph(),dn.DynDiGraph()]
+
+na = [dn.DynGraph(),dn.DynGraph(),dn.DynGraph(),dn.DynGraph()]
 
 def butter_bandpass(lowcut, highcut, fs, order):
     #function to plot butterworth bandpass filter coefficents
@@ -97,11 +108,14 @@ def xcorr(x, y, lags, wparr, mode='full'):
 
     lnorm1 = len(y)-abs(lags)
 
-    norm1 = 1/( x.std() * y.std() * lnorm1)
+    norm1 = ( x.std() * y.std() * lnorm1)
 
-    norm2 = 1/(x.std() * y.std() * x.size) 
+    norm2 = (x.std() * y.std() * x.size)
 
-    return corr*norm1
+    if norm2 == 0:
+        return np.array([]) 
+    else:
+        return corr/norm1
 
 def closest_to_0(x):
     '''function to find the value closest to 0 in an array x'''
@@ -135,7 +149,7 @@ def c0peak(y, x, cutoffh = 0.3):
 
         return clv, x[maxl]
 
-def fperiod(y, cutoffh=0.2, viapeaks=False):
+def fperiod(y, cutoffh=0.25, viapeaks=False):
     '''finds period of discrete point signal y, using intrapolation or to find 0 crossings
      or peak finding, then finds the average crossing distance and mult. by 2 to find period
      set to True to find period using peaks,however must be two or more values satifying find_peaks
@@ -148,22 +162,29 @@ def fperiod(y, cutoffh=0.2, viapeaks=False):
     else:
         ppts = pyaC.zerocross1d(np.arange(len(y)), y, getIndices=False)
 
-
-    s = []
-
-    # loop to calculate serperation between zero crossings or peaks
-    for i in range(len(ppts)-1):
-        d = ppts[i+1] - ppts[i]
-        s.append(d)
+    # np.diff gives interpoint spacing array
+    s = np.diff(ppts)
+    # if s empty return then the reulting xcor from 
+    # print(s)
 
     # average of zero crossing seperation taken and doubled to obtain period
     return 2*np.mean(s)
 
-def maxlagdata( s1, s2 ):
-    # function to produce rolling window time lagged cross correleation of two singals, s1 and s2
-    # plots a graph with time lags on the yaxis (2*Pc_wave_period) and windowed epochs on x axis (xmax=total_time/window size)
-    # sample rate fs, order of butterworth filter order 
+def maxlagdata( s1name, s2name, magdata, comp):
+    '''function to produce rolling window time lagged cross correleation of two singals with peak finding routine for signals s1 and s2 
+    returning array (of array) of xcor vals, lag at peak closest to zero and to append values to a network object, values obtained for each window
+    plots a graph with time lags on the yaxis (2*Pc_wave_period) and windowed epochs on x axis (xmax=total_time/window size)
+    sample rate fs, order of butterworth filter order '''
+
+    '''fuction should reach into above function to grab names and time series in a combinatorial loop'''
+    md = pd.read_csv(magdata)
+
+    ts1 = md[md['IAGA'] == s1name][f'db{comp}_nez']
+    ts2 = md[md['IAGA'] == s2name][f'db{comp}_nez']
     
+    s1 = np.array(ts1)
+    s2 = np.array(ts2)
+
     fs = 1
 
     order = 3
@@ -172,47 +193,42 @@ def maxlagdata( s1, s2 ):
     label = ['Pc2','Pc3','Pc4','Pc5']
 
     tf = [5,10,45,150,600]
-    
-    # index values to select timestamps and filter time values
-    # n = 5
 
-    # indx = np.linspace(0,len(x)-1,n)
-    # # local time filtered date
-    # datel = dateflocal(longg, dateutc, indx)
-
-    # dateu = dateftutc(indx, dateutc)
-
-    # # loop to calculate apexd values sepatarley to speed up code
-    
-    # apexda = np.zeros(4)
-    
-    # for i in [1,2,3]:
-    #     apexda[i] = apexd(latt,longg, dateu.iloc[i])
-    # print(apexda)
-
-    nm = 8
+    nm = 4
 
     #----setting up tlxc
-    # 
-    fig, ax = plt.subplots(2,2, figsize=(11, 8), facecolor='w', edgecolor='k')
-    fig.subplots_adjust(hspace = .5, wspace=.7)
-    ax = ax.ravel()
+
+    # initialising multi-dim arrays to store values
+    # each returned element from function will be one of these arrays to later stack
+
+    # mdxc = [[],[],[],[]]
+
+    # mdl = [[],[],[],[]]
+
+    # flags = [[],[],[],[]]
+
+    num_windows = []
+
+    window_size_a = []
 
     for i, num in enumerate(tf):
         if i<len(tf)-1:
-        # if i==1:        
+        # if i==1:
+        # could speed this loop ? 
 
             # minimum window size 2xperiod for xcor
 
             ws = (tf[i+1] - tf[i])
+            print(ws)
             window_size = nm*ws
-
 
             t_start = 0
             t_end = t_start + window_size
-            step_size = (window_size * 2)//6 # amount of window overlap
+            step_size = (window_size * 3)//4 # amount of window overlap
 
-            print('windsize',window_size,'stepsize', step_size)
+            # print('windsize',window_size,'stepsize', step_size)
+
+            # keep empty arrays otside of loop(s) if values needed to be returned outside of function
 
             min0lags = []
 
@@ -220,7 +236,11 @@ def maxlagdata( s1, s2 ):
 
             flags = []
 
-            while t_end <= len(x):
+            while t_end <= len(s1):
+
+                counter = t_end//window_size
+
+                # print(counter)
 
                 y11 = butter_bandpass_filter(s1[t_start:t_end], 1/(tf[i+1]), 1/num, fs, order=order)
                 y21 = butter_bandpass_filter(s2[t_start:t_end], 1/(tf[i+1]), 1/num, fs, order=order)
@@ -237,9 +257,10 @@ def maxlagdata( s1, s2 ):
 
                 # if statment bellow to catogrise noise into flag array for all cases and append nan into other arrays to keep time dimensionality
                 # continue statment restarts the while loop rather than exiting out of it with break
-                # 
+                # first if statment, after or, to prevent xcor with a flat line at zero, otherwise period finding function needs modifcation
+                # preventing xcor with noise
 
-                if pn == 'A' and pp =='A':
+                if (pn == 'A' and pp =='A') or (np.max(abs(y11))<0.1 or np.max(abs(y21))<0.1) :
                     
                     min0lags.append(np.nan)
 
@@ -286,17 +307,11 @@ def maxlagdata( s1, s2 ):
 
                 # lag values at peaks
 
-                print(pp,'pp')
-
                 mlagsp = pp[1]
-
-                print(mlagsp)
 
                 # gives lag value at peak closest to 0
 
                 mlagp = pp[0]
-
-                # print(mlagp)
 
                 # now finding lag values at troughs
 
@@ -328,7 +343,9 @@ def maxlagdata( s1, s2 ):
 
                 pxc = fperiod(rs)
 
-                # statments to check if data is strictly wave-like so ps approx. pxc
+                # print(ps,pxc)
+
+                # statments to check if data is strictly wave-like so ps approx. pxc (cannot be smaller, nature of xcor)
 
                 if pxc > ps*1.56:
 
@@ -356,97 +373,154 @@ def maxlagdata( s1, s2 ):
                     
                     t_end = t_end + step_size
 
-                # period of pxc cannot be less than that of signal ps
+            # will loop over final arrays to creat the network
+            # also need to stack tlxc, tau and flag arrays? could always filter the tlxc and tau arrays before hand
+            # add arrays to check network i guess unless it's too much work
+            # could return indcices for where a certain condtion is met i.e flag[i]='B' which gives time stamps
 
-                # --- plotting to examine waveforms
+            # range of min0lags, min0vals and flags the same for each band
+            # index i will be the window number
 
-                # if pxc > ps*1.56:
-                # # if (xc0l <0 and len(mlagsn) <3):
+            # for loop for parallel interation to create networks
 
-                #     fig, ax = plt.subplots(2, figsize=(11, 8), facecolor='w', edgecolor='k')
-                #     fig.subplots_adjust(hspace = .5, wspace=.7)
-                #     ax = ax.ravel()
-                    
-                #     # ax[0].set_title(f'{label[i]} wave signals, T range {tf[i]} - {tf[i+1]} s, epoch # {t_end//window_size}')
-                #     ax[0].set_title(f'period {ps}')
+            for j, (xcval, lag) in enumerate(zip(min0vals,min0lags)):
 
-                #     ax[0].plot(np.arange(len(y11)),y11, linestyle='--', color='r', label='s1')
-                #     ax[0].plot(np.arange(len(y11)),y21, label='s2')
-                #     ax[0].grid()
+                # print(i, xcval, lag)
+                
+                if xcval>0 and lag >0:
+                    dna[i].add_interaction(s1name, s2name, t=j)
 
-                #     ax[1].plot(lags0,rs)
+                if xcval>0 and lag <0:
+                    dna[i].add_interaction(s2name,s1name, t=j)
 
-                #     # ax[1].set_title(f'Tlxcor plot with peak sep. {abs(nl)+pl}, xcor_T range {2*tf[i]} - {2*tf[i+1]} s ')
-                #     ax[1].set_title(f'period {pxc}')
+                if xcval<0 and lag <0:
+                    # print(i,'i','cond3','j',j)
+                    dna[i].add_interaction(s1name, s2name, t=j)
 
-                #     ax[1].scatter(extr_0l,xc0l, color='red')
+                if xcval>0 and lag >0:
+                    dna[i].add_interaction(s2name,s1name, t=j)
 
-                #     ax[1].vlines(0,-1,1, linestyle='--',color='r')
+                if lag==0:
+                    na[i].add_interaction(s1name, s2name, t=j)
 
-                #     ax[1].grid()
+        # gives num of windows in network, last value gets updates over
 
-                #     ax[0].legend()
+        # in order to find Pc ranges require only diference values between indices hence one redundant value below arrays
+        print(i)
 
-                #     # plt.savefig(f'{label[i]}waveform_epoch{t_end//window_size}')
+        num_windows.append(len(min0lags))
 
-                # plt.show()
+        window_size_a.append(window_size)
 
-                # # ---------------
+    return num_windows , window_size_a
+
+    
+
+def network(data, component):
+    '''function to create both a directed and undirected netowrk from data for component n,e or z, using the xcor-peak-finding function 
+    for two stations'''
+
+    # will loop over final arrays to creat the network
+    # also need to stack tlxc, tau and flag arrays? could always filter the tlxc and tau arrays before hand
+    # add arrays to check network i guess unless it's too much work
+    # could return indcices for where a certain condtion is met i.e flag[i]='B' which gives time stamps
 
 
-       
+    md = pd.read_csv(data)
+
+    print(md.head())
+
+    # data set with only one set of station names to be used as a label
+    s_labels = md.drop_duplicates(subset=['IAGA'])['IAGA']
+
+    print(s_labels[0],s_labels[1]) 
+
+    # loop to create plot with all the time series if needed
+
+    # fig, ax = plt.subplots(len(labels), figsize=(11, 8), facecolor='w', edgecolor='k')
+    # fig.subplots_adjust(hspace = .5, wspace=.7)
+    # ax = ax.ravel()
+
+    # for i, txt in enumerate(labels):
+
+    #     print(i,txt)
+    #     ts1 = md[md['IAGA'] == txt]['dbn_nez']
+
+    #     ts2 = md[md['IAGA'] == txt]['dbe_nez']
+
+    #     ts3 = md[md['IAGA'] == txt]['dbz_nez']
+
+    #     ax[i].plot(np.arange(len(ts1)),ts1, label='Bn')
+
+    #     ax[i].plot(np.arange(len(ts2)),ts2, label='Be')
+
+    #     ax[i].plot(np.arange(len(ts3)),ts3,label='Bz')
+
+    #     ax[i].legend(loc=2)
+    # plt.show()
+
+
+
+    # y1 = md['N']
+    # y2 = md['E']
+    # y3 = md['Z']
+
+    # y11 = mdxc['dbn_nez']
+    # y22 = mdxc['dbe_nez']
+    # y33 = mdxc['dbz_nez']
+
+
+    # print(list(itertools.combinations(range(1,7),2)))
+    scb = list(itertools.combinations(s_labels,2))
+    for i in range(len(scb)):
+
+        # print(scb[i][0],scb[i][1])
+        k = maxlagdata(scb[i][0],scb[i][1],data, component)
+
+    print(list(itertools.chain(scb)))
+
+
+    # two station test for networks
+    # k = maxlagdata(s_labels[0],s_labels[1],data, component)
+
+
+
+    
+    for i in [1,2,3]:
+
+        for j in range(k[0][i]):
+
+            fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+
+            axs = axs.flatten()
+
+            # print(j)
+
+            dns = dna[i].time_slice(j,j+1)
+
+            ns = na[i].time_slice(j,j+1)
+
+            axs[0].set_axis_off()
+
+            axs[1].set_axis_off()
+           
+            nx.draw(dns, ax=axs[0],with_labels=True, font_weight='bold',arrowsize=20, edgecolor='red',width=1.2)
+
+            nx.draw(ns, ax=axs[1],with_labels=True , font_weight='bold',edgecolor='orange',width=1.2)
+
+            axs[0].set_title(f'digraph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
+
+            axs[1].set_title(f'graph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
+
+            plt.show()
+
+    # at this point network should have some interaction values, so print so check if everything is working
+    # need to print interaction list of both directed and undirected graphs and compare with lags plots before moving forward
+    # strange that plot for each time slice, easier to check for i>0.
 
 
 # time series data from 24/02/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
-# header = 0 to remove title from dataset
-# md = pd.read_csv('20201020-13-39-supermag.csv', header=0, delimiter=',')
-
-md = pd.read_csv('20201020-13-39-supermag.csv')
-
-# gmd = np.genfromtxt('20201020-16-03-supermag2.txt', dtype=None)
-
-print(md.head())
-
-# data set with only one set of station names to be used as a label
-labels = md.drop_duplicates(subset=['IAGA'])['IAGA'] 
-
-# loc selects rows and columns based on their name iloc used index position
-# print(labels)
-# print(labels.iloc[0], type(labels.iloc[0]))
-
-# print(md.columns)
-
-k = labels[0]
-
-ts1 = md[md['IAGA'] == k][['IAGA','dbn_nez']]
-
-# ts1 = md.loc[['RAN','dbn_nez']]
-# ts1 = md.filter(like=k, axis=0)
-
-print(ts1)
-
-# loop to create plot with all the time series
-
-print(len(labels))
-
-fig, ax = plt.subplots(len(labels), figsize=(11, 8), facecolor='w', edgecolor='k')
-fig.subplots_adjust(hspace = .5, wspace=.7)
-ax = ax.ravel()
-for i, txt in enumerate(labels):
-    print(i,txt)
-    ts1 = md[md['IAGA'] == txt]['dbn_nez']
-    ts2 = md[md['IAGA'] == txt]['dbe_nez']
-    ts3 = md[md['IAGA'] == txt]['dbz_nez']
-    ax[i].plot(np.arange(len(ts1)),ts1, label='Bn')
-    ax[i].plot(np.arange(len(ts2)),ts2, label='Be')
-    ax[i].plot(np.arange(len(ts3)),ts3,label='Bz')
-    ax[i].legend(loc=2)
-plt.show()
-
-
-
-
-
+network('20201020-13-39-supermag.csv','n')
 
 
 

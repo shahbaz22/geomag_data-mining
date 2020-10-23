@@ -153,13 +153,8 @@ def fperiod(y, cutoffh=0.2, viapeaks=False):
     else:
         ppts = pyaC.zerocross1d(np.arange(len(y)), y, getIndices=False)
 
-
-    s = []
-
-    # loop to calculate serperation between zero crossings or peaks
-    for i in range(len(ppts)-1):
-        d = ppts[i+1] - ppts[i]
-        s.append(d)
+    # np.diff calculated point seperation
+    s = np.diff(ppts)
 
     # average of zero crossing seperation taken and doubled to obtain period
     return 2*np.mean(s)
@@ -200,7 +195,7 @@ y33 = mdxc['dbz_nez']
 
 # global factor to be multiplied by the period range
 # must be aleast T_Pc for osclating signals
-nm = 8
+nm = 4
 
 def autoxcdata( s1, s2 ):
     # function to produce rolling window time lagged cross correleation of two singals, s1 and s2
@@ -507,7 +502,7 @@ def maxlagdata( s1, s2 ):
 
             t_start = 0
             t_end = t_start + window_size
-            step_size = (window_size * 2)//6 # amount of window overlap
+            step_size = (window_size * 3)//4 # amount of window overlap
 
             print('windsize',window_size,'stepsize', step_size)
 
@@ -517,7 +512,7 @@ def maxlagdata( s1, s2 ):
 
             flags = []
 
-            while t_end <= len(x):
+            while t_end <= len(s1):
 
                 y11 = butter_bandpass_filter(s1[t_start:t_end], 1/(tf[i+1]), 1/num, fs, order=order)
                 y21 = butter_bandpass_filter(s2[t_start:t_end], 1/(tf[i+1]), 1/num, fs, order=order)
@@ -660,29 +655,29 @@ def maxlagdata( s1, s2 ):
                 # if pxc > ps*1.56:
                 # # if (xc0l <0 and len(mlagsn) <3):
 
-                #     fig, ax = plt.subplots(2, figsize=(11, 8), facecolor='w', edgecolor='k')
-                #     fig.subplots_adjust(hspace = .5, wspace=.7)
-                #     ax = ax.ravel()
-                    
-                #     # ax[0].set_title(f'{label[i]} wave signals, T range {tf[i]} - {tf[i+1]} s, epoch # {t_end//window_size}')
-                #     ax[0].set_title(f'period {ps}')
+                # fig, ax = plt.subplots(2, figsize=(11, 8), facecolor='w', edgecolor='k')
+                # fig.subplots_adjust(hspace = .5, wspace=.7)
+                # ax = ax.ravel()
+                
+                # # ax[0].set_title(f'{label[i]} wave signals, T range {tf[i]} - {tf[i+1]} s, epoch # {t_end//window_size}')
+                # ax[0].set_title(f'period {ps}')
 
-                #     ax[0].plot(np.arange(len(y11)),y11, linestyle='--', color='r', label='s1')
-                #     ax[0].plot(np.arange(len(y11)),y21, label='s2')
-                #     ax[0].grid()
+                # ax[0].plot(np.arange(len(y11)),y11, linestyle='--', color='r', label='s1')
+                # ax[0].plot(np.arange(len(y11)),y21, label='s2')
+                # ax[0].grid()
 
-                #     ax[1].plot(lags0,rs)
+                # ax[1].plot(lags0,rs)
 
-                #     # ax[1].set_title(f'Tlxcor plot with peak sep. {abs(nl)+pl}, xcor_T range {2*tf[i]} - {2*tf[i+1]} s ')
-                #     ax[1].set_title(f'period {pxc}')
+                # # ax[1].set_title(f'Tlxcor plot with peak sep. {abs(nl)+pl}, xcor_T range {2*tf[i]} - {2*tf[i+1]} s ')
+                # ax[1].set_title(f'period {pxc}')
 
-                #     ax[1].scatter(extr_0l,xc0l, color='red')
+                # ax[1].scatter(extr_0l,xc0l, color='red')
 
-                #     ax[1].vlines(0,-1,1, linestyle='--',color='r')
+                # ax[1].vlines(0,-1,1, linestyle='--',color='r')
 
-                #     ax[1].grid()
+                # ax[1].grid()
 
-                #     ax[0].legend()
+                # ax[0].legend()
 
                 #     # plt.savefig(f'{label[i]}waveform_epoch{t_end//window_size}')
 
@@ -742,4 +737,22 @@ def maxlagdata( s1, s2 ):
 
 # tlxcdata(y1,y2)
 
-maxlagdata(y2,y22)
+
+
+md = pd.read_csv('20201020-13-39-supermag.csv')
+
+print(md.head())
+
+# data set with only one set of station names to be used as a label
+labels = md.drop_duplicates(subset=['IAGA'])['IAGA'] 
+
+
+# I would like to just add station names to to tlxcor function
+
+ts1 = md[md['IAGA'] == 'RAN']['dbz_nez']
+ts2 = md[md['IAGA'] == 'GIM']['dbz_nez']
+y1 = np.array(ts1)
+x1 = np.array(ts2)
+print(x1)
+
+maxlagdata(x1,y1)
