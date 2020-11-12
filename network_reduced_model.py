@@ -5,14 +5,15 @@ import scipy
 from scipy.fftpack import fft
 from scipy import signal
 from scipy.signal import butter, lfilter, freqz, find_peaks
-# from geopacktest import apdvalue
-from datetime import timedelta
-import time
 from PyAstronomy import pyaC # for zero crossing intrapolation
 import networkx as nx
 import matplotlib.pyplot as plt
 import dynetx as dn
 import itertools
+from dynetx.readwrite import json_graph
+import json
+
+
 
 
 # initialising directed and undirected network arrays for all Pc bands
@@ -40,59 +41,6 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order):
     y = lfilter(b, a, signal.tukey(len(data))*data)
     return y
 
-def apexd(lat, lon, date):
-    '''function to return apex distance and convert dateimte to unix datetime UTC for datetime in supermag datetime 
-    format, lon is the longitude and date value needed for 
-    conversion to calculate apex distance for magnetic fields using geopack (function apdvalue)
-    use unix date for apd values then compare to local time
-    date foramt: YYYY/MM/DD hh/mm/ss
-    input: unix utc date, longitude
-    return: apex distance in Re multiple'''
-
-    t0 = np.datetime64(str(date))
-
-    t0 = t0.astype('datetime64[s]').astype('int')
-
-    d0 = np.round(apdvalue(lat, lon, int(t0)),decimals=1)
-
-    return d0
-
-def dateftutc(ind, date):
-    '''function to filter UTC dates to calculate apexd values for plotting'''
-
-    mask = date.index.isin(ind)
-
-    date = date[mask]
-
-    return date
-
-def dateflocal(lon, date, ind):
-    ''' fuction to convert datetime utc formal to local time 
-   selecting values from ind array to be used for plotting'''
-
-    mask = date.index.isin(ind)
-
-    date = date[mask]
-
-    date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S')
-
-    if lon > 180:
-
-        date = date - timedelta(hours=np.round((360-lon)/15))
-
-    else:
-
-        date = date + timedelta(hours=np.round(lon/15))
-
-    # date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S') - timedelta(hours=6.1)
-
-    date = date.astype(str)
-
-    date = date.str.extract(f'(\d\d:\d\d:\d\d)', expand=True)
-
-    date = np.squeeze(date.values)
-
-    return date
 
 def xcorr(x, y, lags, wparr, mode='full'):
     '''function to window time series using a tukey window with window parameter alpha 
@@ -106,15 +54,30 @@ def xcorr(x, y, lags, wparr, mode='full'):
 
     corr = signal.correlate(x, y, mode=mode, method='fft')
 
-    lnorm1 = len(y)-abs(lags)
+    lnorm1 = len(x)-np.absolute(lags)
 
-    norm1 = ( x.std() * y.std() * lnorm1)
+    sd1 = np.std(x) 
 
-    norm2 = (x.std() * y.std() * x.size)
+    sd2 = np.std(y)
 
-    if norm2 == 0:
+    norm1 =  sd1 * sd2 * lnorm1
+
+    # norm2 = (x.std() * y.std() * x.size)
+
+    # print(lnorm1,'lnorm')
+
+    if (sd1 or sd2) == 0:
         return np.array([]) 
+    elif len(y)!=len(x):
+        return np.array([])
     else:
+        # print(corr,len(corr),'corr value, len')
+
+        # print(x)
+
+        # print(y)
+
+        # print(norm1,len(norm1), 'norm value, len ')
         return corr/norm1
 
 def closest_to_0(x):
@@ -170,13 +133,12 @@ def fperiod(y, cutoffh=0.25, viapeaks=False):
     # average of zero crossing seperation taken and doubled to obtain period
     return 2*np.mean(s)
 
-def maxlagdata( s1name, s2name, magdata, comp):
-    '''function to produce rolling window time lagged cross correleation of two singals with peak finding routine for signals s1 and s2 
+def network_append( s1name, s2name, magdata, comp):
+    '''function to produce rolling window time lagged cross correleation of two singals with peak finding routine for signal labels s1 and s2 
     returning array (of array) of xcor vals, lag at peak closest to zero and to append values to a network object, values obtained for each window
     plots a graph with time lags on the yaxis (2*Pc_wave_period) and windowed epochs on x axis (xmax=total_time/window size)
-    sample rate fs, order of butterworth filter order '''
+    sample rate fs, order of butterworth filter order. Comp can be n, e , or z '''
 
-    '''fuction should reach into above function to grab names and time series in a combinatorial loop'''
     md = pd.read_csv(magdata)
 
     ts1 = md[md['IAGA'] == s1name][f'db{comp}_nez']
@@ -194,7 +156,7 @@ def maxlagdata( s1name, s2name, magdata, comp):
 
     tf = [5,10,45,150,600]
 
-    nm = 4
+    nm = 3
 
     #----setting up tlxc
 
@@ -211,15 +173,16 @@ def maxlagdata( s1name, s2name, magdata, comp):
 
     window_size_a = []
 
+    step_size_array = []
+
+
     for i, num in enumerate(tf):
         if i<len(tf)-1:
-        # if i==1:
-        # could speed this loop ? 
 
             # minimum window size 2xperiod for xcor
 
             ws = (tf[i+1] - tf[i])
-            print(ws)
+
             window_size = nm*ws
 
             t_start = 0
@@ -227,7 +190,7 @@ def maxlagdata( s1name, s2name, magdata, comp):
             step_size = (window_size * 3)//4 # amount of window overlap
 
             # print('windsize',window_size,'stepsize', step_size)
-
+            print(step_size, 'step_size')
             # keep empty arrays otside of loop(s) if values needed to be returned outside of function
 
             min0lags = []
@@ -236,11 +199,15 @@ def maxlagdata( s1name, s2name, magdata, comp):
 
             flags = []
 
+            step_size_array.append(step_size)
+
             while t_end <= len(s1):
 
                 counter = t_end//window_size
 
                 # print(counter)
+
+                # y11 , y21 filtering time series to use with TLXC
 
                 y11 = butter_bandpass_filter(s1[t_start:t_end], 1/(tf[i+1]), 1/num, fs, order=order)
                 y21 = butter_bandpass_filter(s2[t_start:t_end], 1/(tf[i+1]), 1/num, fs, order=order)
@@ -403,21 +370,39 @@ def maxlagdata( s1name, s2name, magdata, comp):
                 if lag==0:
                     na[i].add_interaction(s1name, s2name, t=j)
 
+
         # gives num of windows in network, last value gets updates over
 
         # in order to find Pc ranges require only diference values between indices hence one redundant value below arrays
         print(i)
 
+        print(len(ts1),'number of time stamps')
+
+        t = len(min0lags)*step_size
+
+        print(window_size,'window_size')
+
+        print(t,'t')
+
         num_windows.append(len(min0lags))
 
         window_size_a.append(window_size)
+
+        # can comment out when running large code, always be the same
+
+        np.save('step_size_arr.npy',step_size_array)
+
+        print(step_size_array,'stepsizes')
+
+
 
     return num_windows , window_size_a
 
     
 
 def network(data, component):
-    '''function to create both a directed and undirected netowrk from data for component n,e or z, using the xcor-peak-finding function 
+    '''function to create both a directed and undirected netowrk from data for component n,e or z, using the xcor-peak-finding
+     and network appending function network_append 
     for two stations'''
 
     # will loop over final arrays to creat the network
@@ -430,10 +415,12 @@ def network(data, component):
 
     print(md.head())
 
-    # data set with only one set of station names to be used as a label
+    # data set with only station names to be used as a label
     s_labels = md.drop_duplicates(subset=['IAGA'])['IAGA']
 
-    print(s_labels[0],s_labels[1]) 
+    num_stations = len(s_labels)
+
+    s_labels = s_labels[0:5]
 
     # loop to create plot with all the time series if needed
 
@@ -459,98 +446,175 @@ def network(data, component):
     #     ax[i].legend(loc=2)
     # plt.show()
 
+    # scb lists station pair permutations as Nc2 
 
-
-    # y1 = md['N']
-    # y2 = md['E']
-    # y3 = md['Z']
-
-    # y11 = mdxc['dbn_nez']
-    # y22 = mdxc['dbe_nez']
-    # y33 = mdxc['dbz_nez']
-
-
-    # print(list(itertools.combinations(range(1,7),2)))
     scb = list(itertools.combinations(s_labels,2))
+
+    # for loop over permutation pairs to calculate network connections between station pairs and append to network containers
+
     for i in range(len(scb)):
 
-        # print(scb[i][0],scb[i][1])
-        k = maxlagdata(scb[i][0],scb[i][1],data, component)
+        # k is the output from the 2 station peak-finding and netowrk appending aglo
 
-    print(list(itertools.chain(scb)))
+        print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations')
+
+        k = network_append(scb[i][0],scb[i][1],data, component)
+
+    # print list for displaying perm pairs from scb 
+    # print(list(itertools.chain(scb)))
+
+    # print(list(dna[3].stream_interactions()))
 
 
-    # two station test for networks
-    # k = maxlagdata(s_labels[0],s_labels[1],data, component)
 
+    # plotting and saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
+    # k[0] is the num of windows (which can overlap) (timestamps) for each network k[1] is the window size
 
+    for i in [0,1,2,3]:
 
-    
-    for i in [1,2,3]:
+        dn.readwrite.edgelist.write_interactions(dna[i], f'dna{i}.txt')
 
-        for j in range(k[0][i]):
+        dn.readwrite.edgelist.write_interactions(na[i], f'na{i}.txt')
 
-            fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+        # data = json_graph.node_link_data(dna[i])
 
-            axs = axs.flatten()
+        # with open(f'dna{i}.json', 'w') as f:
+        #     json.dump(data, f)
 
-            # print(j)
+        # data = json_graph.node_link_data(na[i])
+
+        # with open(f'na{i}.json', 'w') as f:
+        #     json.dump(data, f)
+
+        # for j in range(k[0][i]):
+
+        #     fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+
+        #     axs = axs.flatten()
+
+        #     # print(j)
+
+        #     dns = dna[i].time_slice(j)
+
+        #     ns = na[i].time_slice(j)
+
+        #     axs[0].set_axis_off()
+
+        #     axs[1].set_axis_off()
+           
+        #     nx.draw(dns, ax=axs[0],with_labels=True, font_weight='bold',arrowsize=20, edgecolor='red',width=1.2)
+
+        #     nx.draw(ns, ax=axs[1],with_labels=True , font_weight='bold',edgecolor='orange',width=1.2)
+
+        #     axs[0].set_title(f'digraph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
+
+        #     axs[1].set_title(f'graph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
+
+        #     plt.show()
+
+    # for i in [0,1,2,3]:
+
+    #     if dna[i].order() == 0:
+
+    #         print('empty graph ana',i)
+
+    #     else:
+
+    #         print(dn.classes.function.nodes(dna[i]))
+
+    #         print(dn.classes.function.degree_histogram(dna[i]))
+
+    #         print(dna[i].size()/dna[i].order())
+
+    #     if na[i].order() == 0:
+
+    #         print('empty graph na',i)
+
+    #     else:
+
+    #         print(dn.classes.function.nodes(na[i]))
+
+    #         print(dn.classes.function.degree_histogram(na[i]))
+
+    #         print(na[i].size()/na[i].order())
+
+    # average degree code
+
+    avg_deg_matrix_dn = [[],[],[],[]]
+
+    avg_deg_matrix_n = [[],[],[],[]]
+
+    for i in [0,1,2,3]:
+
+        fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+
+        # obtains the last time stamp in the network
+
+        epochs = list(dna[i].stream_interactions())[-1][3]
+
+        # loop for slicing consecutive time stamps and calculating degree
+
+        for j in range(epochs):
 
             dns = dna[i].time_slice(j,j+1)
 
             ns = na[i].time_slice(j,j+1)
 
-            axs[0].set_axis_off()
+            # number of edges divided by number of nodes for directed graph
 
-            axs[1].set_axis_off()
-           
-            nx.draw(dns, ax=axs[0],with_labels=True, font_weight='bold',arrowsize=20, edgecolor='red',width=1.2)
+            # print(dns.size(),dns.order(), 'edges','nodes')
+            
+            # code segment for dirnetwork
+            if dns.order()!= 0:
 
-            nx.draw(ns, ax=axs[1],with_labels=True , font_weight='bold',edgecolor='orange',width=1.2)
+                k = dns.size()/dns.order()
 
-            axs[0].set_title(f'digraph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
+                # print(k, j, 'avg deg, count')
 
-            axs[1].set_title(f'graph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
+                avg_deg_matrix_dn[i].append(k)
 
-            plt.show()
+            else:
+
+                avg_deg_matrix_dn[i].append(np.nan)
+
+            # code segment for undirnetwork
+
+            if ns.order()!= 0:
+
+                k = ns.size()/ns.order()
+
+                # print(k, j, 'avg deg, count')
+
+                avg_deg_matrix_n[i].append(k)
+
+            else:
+
+                avg_deg_matrix_n[i].append(np.nan)
+
+
+        countdn = np.arange(len(avg_deg_matrix_dn[i]))
+
+        countn = np.arange(len(avg_deg_matrix_n[i]))
+
+        # print(countdn,countn)
+
+        axs[0].set_title('dirnetwork <k>')
+
+        axs[0].plot(countdn,avg_deg_matrix_dn[i])
+
+        axs[1].set_title('undirnetwork <k>')
+
+        axs[1].plot(countn, avg_deg_matrix_n[i])
+
+        plt.show()
 
     # at this point network should have some interaction values, so print so check if everything is working
     # need to print interaction list of both directed and undirected graphs and compare with lags plots before moving forward
     # strange that plot for each time slice, easier to check for i>0.
 
 
-# time series data from 24/02/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
-network('20201020-13-39-supermag.csv','n')
+# time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
+network('20201111-18-30-supermag.csv','e')
 
 
 
-
-
-
-
-# longg = float(ld['RAN'].iloc[0])
-# latt = float(ld['RAN'].iloc[1])
-
-# longg2 = float(ld['GIM'].iloc[0])
-# latt2 = float(ld['GIM'].iloc[1])
-
-# x = md.index
-
-# y1 = md['N']
-# y2 = md['E']
-# y3 = md['Z']
-# dateutc= md['Date_UTC']
-
-# y11 = mdxc['dbn_nez']
-# y22 = mdxc['dbe_nez']
-# y33 = mdxc['dbz_nez']
-
-# plt.plot(signal.tukey(len(y1),alpha=1.2))
-# plt.plot(signal.slepian(len(y1),width=0.0001))
-# plt.show()
-
-# global factor to be multiplied by the period range
-# must be aleast T_Pc for osclating signals
-
-
-# maxlagdata(y2,y22)
