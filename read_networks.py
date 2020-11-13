@@ -5,144 +5,205 @@ import itertools
 import numpy as np
 from dynetx.readwrite import json_graph
 import json
+import pandas as pd
+
+def dateflocal(date,ind):
+    ''' fuction to convert datetime utc formal to numpy array to be used for plotting.
+    where ind is the total number of time points needed from the date-time series'''
+
+    mask = date.index.isin(ind)
+
+    date = date[mask]
+
+    date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S')
+
+    # date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S') - timedelta(hours=6.1)
+
+    date = date.astype(str)
+
+    date = date.str.extract(f'(\d\d:\d\d:\d\d)', expand=True)
+
+    date = np.squeeze(date.values)
+
+    return date
+
+md = pd.read_csv('SME_SMR_spd.csv')
+
+print(md.head())
+
+index_date = md['Date_UTC']
+
+sme = md['SME']
+
+smr = md['SMR']
+
+# print('start_time, end_time',index_date.iloc[0],index_date.iloc[-1])
+
+# sub divisions of time axis
+
+n = 5
+
+indx_mask = np.linspace(0,len(index_date)-1,n)
+
+datel = dateflocal(index_date,indx_mask)
+
+plt.plot(index_date,sme)
+
+plt.xticks(indx_mask, datel)
+
+plt.show()
+
+# ax2 = ax[i].twiny() # Remark: twiny will create a new axes 
+# # where the y-axis is shared with ax1, 
+# # but the x-axis is independant - important!
+# # ax2.set_xlim(ax[i].get_xlim()) # ensure the independant x-axes now span the same range
+
+# # index values to select timestamps and filter time values
 
 
-# using dictionary to map strings to variables
+# # local time filtered date
+# datel = dateflocal(longg, dateutc, indx)
 
-nl =["na0.txt","na1.txt","na2.txt","na3.txt"]
+# dateu = dateftutc(indx, dateutc)
 
-dnl = ["dna0.txt","dna1.txt","dna2.txt","dna3.txt"]
 
-na = [[],[],[],[]]
+# ax2.set_xticks(indx) # copy over the locations of the x-ticks from the first axes
+# ax2.set_xticklabels(datel, rotation=70) 
 
-dna = [[],[],[],[]]
+# nl =["na0.txt","na1.txt","na2.txt","na3.txt"]
 
-for i in range(len(dnl)):
+# dnl = ["dna0.txt","dna1.txt","dna2.txt","dna3.txt"]
 
-	netdata1 = open(nl[i],"rb")
+# na = [[],[],[],[]]
 
-	netdata2 = open(dnl[i],"rb")
+# dna = [[],[],[],[]]
 
-	na[i] = dn.readwrite.edgelist.read_interactions(netdata1, nodetype=str, timestamptype=int)
+# for i in range(len(dnl)):
 
-	dna[i] = dn.readwrite.edgelist.read_interactions(netdata2, nodetype=str, timestamptype=int, directed=True)
+# 	netdata1 = open(nl[i],"rb")
 
-# print(list(dna[1].stream_interactions())[-1][3])
+# 	netdata2 = open(dnl[i],"rb")
 
-# print(list(dna[3].stream_interactions()))
+# 	na[i] = dn.readwrite.edgelist.read_interactions(netdata1, nodetype=str, timestamptype=int)
 
-# for i in [1,2]:
+# 	dna[i] = dn.readwrite.edgelist.read_interactions(netdata2, nodetype=str, timestamptype=int, directed=True)
 
-# 	print(i)
+# # print(list(dna[1].stream_interactions())[-1][3])
 
-# 	# gives time for last interaction
+# # print(list(dna[3].stream_interactions()))
+
+# # for i in [1,2]:
+
+# # 	print(i)
+
+# # 	# gives time for last interaction
+
+# # 	epochs = list(dna[i].stream_interactions())[-1][3]
+
+# # 	for j in range(epochs):
+
+# # 		# plotting each time slice
+
+# # 		fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+
+# # 		axs = axs.flatten()
+
+# # 		# print(j)
+
+# # 		dns = dna[i].time_slice(j)
+
+# # 		ns = na[i].time_slice(j)
+
+# # 		axs[0].set_axis_off()
+
+# # 		axs[1].set_axis_off()
+
+# # 		nx.draw(dns, ax=axs[0],with_labels=True, font_weight='bold',arrowsize=20, edgecolor='red',width=1.2)
+
+# # 		nx.draw(ns, ax=axs[1],with_labels=True , font_weight='bold',edgecolor='orange',width=1.2)
+
+# # 		axs[0].set_title(f'digraph with window epoch {j} out of {epochs}, Pc{i+2}')
+
+# # 		axs[1].set_title(f'graph with window epoch {j} out of {epochs}, Pc{i+2}')
+
+# # 		plt.show()
+
+
+
+# avg_deg_matrix_dn = [[],[],[],[]]
+
+# avg_deg_matrix_n = [[],[],[],[]]
+
+# a = np.load('step_size_arr.npy')
+
+# print()
+
+
+# for i in [0,1,2,3]:
+
+# 	fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+
+# 	# obtains the last time stamp in the network
 
 # 	epochs = list(dna[i].stream_interactions())[-1][3]
 
+# 	# loop for slicing consecutive time stamps and calculating degree
+
+# 	print(f'Pc{i}')
+
 # 	for j in range(epochs):
 
-# 		# plotting each time slice
+# 		dns = dna[i].time_slice(j,j+1)
 
-# 		fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
+# 		ns = na[i].time_slice(j,j+1)
 
-# 		axs = axs.flatten()
+# 		# number of edges divided by number of nodes for directed graph
 
-# 		# print(j)
-
-# 		dns = dna[i].time_slice(j)
-
-# 		ns = na[i].time_slice(j)
-
-# 		axs[0].set_axis_off()
-
-# 		axs[1].set_axis_off()
-
-# 		nx.draw(dns, ax=axs[0],with_labels=True, font_weight='bold',arrowsize=20, edgecolor='red',width=1.2)
-
-# 		nx.draw(ns, ax=axs[1],with_labels=True , font_weight='bold',edgecolor='orange',width=1.2)
-
-# 		axs[0].set_title(f'digraph with window epoch {j} out of {epochs}, Pc{i+2}')
-
-# 		axs[1].set_title(f'graph with window epoch {j} out of {epochs}, Pc{i+2}')
-
-# 		plt.show()
-
-
-
-avg_deg_matrix_dn = [[],[],[],[]]
-
-avg_deg_matrix_n = [[],[],[],[]]
-
-a = np.load('step_size_arr.npy')
-
-print()
-
-
-for i in [0,1,2,3]:
-
-	fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
-
-	# obtains the last time stamp in the network
-
-	epochs = list(dna[i].stream_interactions())[-1][3]
-
-	# loop for slicing consecutive time stamps and calculating degree
-
-	print(f'Pc{i}')
-
-	for j in range(epochs):
-
-		dns = dna[i].time_slice(j,j+1)
-
-		ns = na[i].time_slice(j,j+1)
-
-		# number of edges divided by number of nodes for directed graph
-
-		print(dns.size(),dns.order(), 'edges','nodes')
+# 		print(dns.size(),dns.order(), 'edges','nodes')
 		
-		# code segment for dirnetwork
-		if dns.order()!= 0:
+# 		# code segment for dirnetwork
+# 		if dns.order()!= 0:
 
-			k = dns.size()/dns.order()
+# 			k = dns.size()/dns.order()
 
-			# print(k, j, 'avg deg, count rc')
+# 			# print(k, j, 'avg deg, count rc')
 
-			avg_deg_matrix_dn[i].append(k)
+# 			avg_deg_matrix_dn[i].append(k)
 
-		else:
+# 		else:
 
-			avg_deg_matrix_dn[i].append(np.nan)
+# 			avg_deg_matrix_dn[i].append(np.nan)
 
-		# code segment for undirnetwork
+# 		# code segment for undirnetwork
 
-		if ns.order()!= 0:
+# 		if ns.order()!= 0:
 
-			k = ns.size()/ns.order()
+# 			k = ns.size()/ns.order()
 
-			# print(k, j, 'avg deg, count rc')
+# 			# print(k, j, 'avg deg, count rc')
 
-			avg_deg_matrix_n[i].append(k)
+# 			avg_deg_matrix_n[i].append(k)
 
-		else:
+# 		else:
 
-			avg_deg_matrix_n[i].append(np.nan)
+# 			avg_deg_matrix_n[i].append(np.nan)
 
 
-	countdn = np.arange(len(avg_deg_matrix_dn[i]))
+# 	countdn = np.arange(len(avg_deg_matrix_dn[i]))
 
-	countn = np.arange(len(avg_deg_matrix_n[i]))
+# 	countn = np.arange(len(avg_deg_matrix_n[i]))
 
-	# print(countdn,countn)
+# 	# print(countdn,countn)
 
-	axs[0].set_title('dirnetwork <k>')
+# 	axs[0].set_title('dirnetwork <k>')
 
-	axs[0].plot(countdn,avg_deg_matrix_dn[i])
+# 	axs[0].plot(countdn,avg_deg_matrix_dn[i])
 
-	axs[1].set_title('undirnetwork <k>')
+# 	axs[1].set_title('undirnetwork <k>')
 
-	axs[1].plot(countn, avg_deg_matrix_n[i])
+# 	axs[1].plot(countn, avg_deg_matrix_n[i])
 
-	plt.show()
+# 	plt.show()
 
 
 # print(list(dn.classes.function.degree_histogram(dna[1])))
