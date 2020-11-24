@@ -10,8 +10,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import dynetx as dn
 import itertools
-from dynetx.readwrite import json_graph
-import json
+# from dynetx.readwrite import json_graph
+# import json
 
 
 
@@ -67,18 +67,35 @@ def xcorr(x, y, lags, wparr, mode='full'):
     # print(lnorm1,'lnorm')
 
     if (sd1 or sd2) == 0:
+
         return np.array([]) 
+
     elif len(y)!=len(x):
+
         return np.array([])
     else:
-        # print(corr,len(corr),'corr value, len')
 
-        # print(x)
-
-        # print(y)
-
-        # print(norm1,len(norm1), 'norm value, len ')
         return corr/norm1
+
+def dateflocal(date,ind):
+    ''' fuction to convert datetime utc formal to numpy array to be used for plotting.
+    where ind is the total number of time points needed from the date-time series'''
+
+    mask = date.index.isin(ind)
+
+    date = date[mask]
+
+    date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S')
+
+    # date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S') - timedelta(hours=6.1)
+
+    date = date.astype(str)
+
+    date = date.str.extract(f'(\d\d:\d\d:\d\d)', expand=True)
+
+    date = np.squeeze(date.values)
+
+    return date
 
 def closest_to_0(x):
     '''function to find the value closest to 0 in an array x'''
@@ -352,22 +369,22 @@ def network_append( s1name, s2name, magdata, comp):
 
             for j, (xcval, lag) in enumerate(zip(min0vals,min0lags)):
 
-                # print(i, xcval, lag)
+                print(i, j, xcval, lag)
                 
                 if xcval>0 and lag >0:
                     dna[i].add_interaction(s1name, s2name, t=j)
 
-                if xcval>0 and lag <0:
+                elif xcval>0 and lag <0:
                     dna[i].add_interaction(s2name,s1name, t=j)
 
-                if xcval<0 and lag <0:
+                elif xcval<0 and lag <0:
                     # print(i,'i','cond3','j',j)
                     dna[i].add_interaction(s1name, s2name, t=j)
 
-                if xcval>0 and lag >0:
+                elif xcval<0 and lag>0:
                     dna[i].add_interaction(s2name,s1name, t=j)
 
-                if lag==0:
+                elif lag==0:
                     na[i].add_interaction(s1name, s2name, t=j)
 
 
@@ -420,35 +437,13 @@ def network(data, component):
 
     num_stations = len(s_labels)
 
-    s_labels = s_labels[0:5]
-
-    # loop to create plot with all the time series if needed
-
-    # fig, ax = plt.subplots(len(labels), figsize=(11, 8), facecolor='w', edgecolor='k')
-    # fig.subplots_adjust(hspace = .5, wspace=.7)
-    # ax = ax.ravel()
-
-    # for i, txt in enumerate(labels):
-
-    #     print(i,txt)
-    #     ts1 = md[md['IAGA'] == txt]['dbn_nez']
-
-    #     ts2 = md[md['IAGA'] == txt]['dbe_nez']
-
-    #     ts3 = md[md['IAGA'] == txt]['dbz_nez']
-
-    #     ax[i].plot(np.arange(len(ts1)),ts1, label='Bn')
-
-    #     ax[i].plot(np.arange(len(ts2)),ts2, label='Be')
-
-    #     ax[i].plot(np.arange(len(ts3)),ts3,label='Bz')
-
-    #     ax[i].legend(loc=2)
-    # plt.show()
+    s_labels = s_labels[0:3]
 
     # scb lists station pair permutations as Nc2 
 
     scb = list(itertools.combinations(s_labels,2))
+
+    print(scb)
 
     # for loop over permutation pairs to calculate network connections between station pairs and append to network containers
 
@@ -598,11 +593,11 @@ def network(data, component):
 
         # print(countdn,countn)
 
-        axs[0].set_title('dirnetwork <k>')
+        axs[0].set_title('dirnetwork')
 
         axs[0].plot(countdn,avg_deg_matrix_dn[i])
 
-        axs[1].set_title('undirnetwork <k>')
+        axs[1].set_title('instantiouslly dirnetwork')
 
         axs[1].plot(countn, avg_deg_matrix_n[i])
 
