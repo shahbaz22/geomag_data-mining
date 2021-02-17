@@ -13,16 +13,14 @@ import itertools
 # from dynetx.readwrite import json_graph
 # import json
 
-
-
-
-# initialising directed and undirected network arrays for all Pc bands
+# initialising directed and undirected network arrays to store values for all Pc bands
 
 dna = [dn.DynDiGraph(),dn.DynDiGraph(),dn.DynDiGraph(),dn.DynDiGraph()]
 
 na = [dn.DynGraph(),dn.DynGraph(),dn.DynGraph(),dn.DynGraph()]
 
 def butter_bandpass(lowcut, highcut, fs, order):
+
     #function to plot butterworth bandpass filter coefficents
     nyq = 0.5 * fs
 
@@ -34,6 +32,7 @@ def butter_bandpass(lowcut, highcut, fs, order):
     return b, a
 
 def butter_bandpass_filter(data, lowcut, highcut, fs, order):
+
     #function to use bandpass coeffs to window then filter real data 
     b, a = butter_bandpass(lowcut, highcut, fs, order)
     #creates the a digital frequency response and applies it to data
@@ -43,6 +42,7 @@ def butter_bandpass_filter(data, lowcut, highcut, fs, order):
 
 
 def xcorr(x, y, lags, wparr, mode='full'):
+
     '''function to window time series using a tukey window with window parameter alpha 
     then to perform a time laged cross correlation with normalistation norm1'''
     
@@ -78,6 +78,7 @@ def xcorr(x, y, lags, wparr, mode='full'):
         return corr/norm1
 
 def dateflocal(date,ind):
+
     ''' fuction to convert datetime utc formal to numpy array to be used for plotting.
     where ind is the total number of time points needed from the date-time series'''
 
@@ -98,6 +99,7 @@ def dateflocal(date,ind):
     return date
 
 def closest_to_0(x):
+
     '''function to find the value closest to 0 in an array x'''
 
     clv = np.min(np.abs(x))
@@ -111,6 +113,7 @@ def closest_to_0(x):
 
 
 def c0peak(y, x, cutoffh = 0.3):
+
     '''function to find x value for (maximums) peak in data closest to 0
     use y -> -y for minimums with hight above cutoffh which we set to 0.2 from noise analysis'''
 
@@ -130,6 +133,7 @@ def c0peak(y, x, cutoffh = 0.3):
         return clv, x[maxl]
 
 def fperiod(y, cutoffh=0.25, viapeaks=False):
+
     '''finds period of discrete point signal y, using intrapolation or to find 0 crossings
      or peak finding, then finds the average crossing distance and mult. by 2 to find period
      set to True to find period using peaks,however must be two or more values satifying find_peaks
@@ -150,17 +154,28 @@ def fperiod(y, cutoffh=0.25, viapeaks=False):
     # average of zero crossing seperation taken and doubled to obtain period
     return 2*np.mean(s)
 
-def network_append( s1name, s2name, magdata, comp):
-    '''function to produce rolling window time lagged cross correleation of two singals with peak finding routine for signal labels s1 and s2 
-    returning array (of array) of xcor vals, lag at peak closest to zero and to append values to a network object, values obtained for each window
-    plots a graph with time lags on the yaxis (2*Pc_wave_period) and windowed epochs on x axis (xmax=total_time/window size)
-    sample rate fs, order of butterworth filter order. Comp can be n, e , or z '''
+def network_append( s1name, s2name, md, comp):
 
-    md = pd.read_csv(magdata)
+    '''function to produce rolling window time lagged cross 
+    correleation of two singals with peak finding routine for signals with labels s1 and s2 
+    
+    returning array (of array) of xcor vals, lag at peak closest to zero (irrespective of 
+    aplitude as long as condtions in func c0peak satisfied) and to append name strings values 
+    to a network object for each window
+
+    algorithm filters data to obtain wave-like signals with labels: 'A', 'B' and 'C'
+    for noise, non-wave-like correlated and wavelike for band pass filter 
+    applied on each windowsample rate fs, order of butterworth filter order 
+    componenet used can be n, e , or z '''
+
+    # provides the whole data set of times given the name of the station, need to change
+
+    # md is type pandas dataframe
+
 
     ts1 = md[md['IAGA'] == s1name][f'db{comp}_nez']
     ts2 = md[md['IAGA'] == s2name][f'db{comp}_nez']
-    
+
     s1 = np.array(ts1)
     s2 = np.array(ts2)
 
@@ -272,6 +287,33 @@ def network_append( s1name, s2name, magdata, comp):
                     
                     t_end = t_end + step_size
 
+                    fig, ax = plt.subplots(nrows=2, facecolor='w', edgecolor='k')
+                    fig.subplots_adjust(hspace=0.8)
+
+                    ax[0].plot(np.arange(len(y21)),y21, color='red', linestyle='--',label ='time series 1')
+
+                    ax[0].plot(np.arange(len(y11)),y11, label ='time series 2')
+
+                    ax[0].set_xlabel('Time (s)')
+
+                    ax[0].set_ylabel('B (nT)')
+
+                    ax[1].plot(lags0,rs)
+
+                    ax[1].set_xlabel('Time lags (s)')
+
+                    ax[1].set_ylabel('Normalised cross-correlation.')
+
+                    ax[1].axvline(x=0,c='red',ls='--')
+
+                    ax[1].grid()
+
+                    ax[0].grid()
+
+                    ax[0].legend()
+
+                    plt.show()
+
                     continue
 
                 elif pn != 'A' and pp =='A':
@@ -329,7 +371,10 @@ def network_append( s1name, s2name, magdata, comp):
 
                 # print(ps,pxc)
 
-                # statments to check if data is strictly wave-like so ps approx. pxc (cannot be smaller, nature of xcor)
+                # statments to check if data is strictly wave-like 
+                # so ps approx. pxc cannot be smaller, nature of xcor)
+                # xcor cannot have small period then average period of both signals
+                # so only > bound used for range 
 
                 if pxc > ps*1.56:
 
@@ -369,7 +414,7 @@ def network_append( s1name, s2name, magdata, comp):
 
             for j, (xcval, lag) in enumerate(zip(min0vals,min0lags)):
 
-                print(i, j, xcval, lag)
+                print(i, j, xcval, lag, 'i, j, xcval, lag')
                 
                 if xcval>0 and lag >0:
                     dna[i].add_interaction(s1name, s2name, t=j)
@@ -384,6 +429,7 @@ def network_append( s1name, s2name, magdata, comp):
                 elif xcval<0 and lag>0:
                     dna[i].add_interaction(s2name,s1name, t=j)
 
+                # maybe add else: instead of elif lag==0 to speed up code
                 elif lag==0:
                     na[i].add_interaction(s1name, s2name, t=j)
 
@@ -391,15 +437,12 @@ def network_append( s1name, s2name, magdata, comp):
         # gives num of windows in network, last value gets updates over
 
         # in order to find Pc ranges require only diference values between indices hence one redundant value below arrays
-        print(i)
-
-        print(len(ts1),'number of time stamps')
 
         t = len(min0lags)*step_size
 
-        print(window_size,'window_size')
+        # print(window_size,'window_size')
 
-        print(t,'t')
+        print(t,'time in seconds')
 
         num_windows.append(len(min0lags))
 
@@ -409,24 +452,15 @@ def network_append( s1name, s2name, magdata, comp):
 
         np.save('step_size_arr.npy',step_size_array)
 
-        print(step_size_array,'stepsizes')
-
-
 
     return num_windows , window_size_a
 
     
 
-def network(data, component):
-    '''function to create both a directed and undirected netowrk from data for component n,e or z, using the xcor-peak-finding
-     and network appending function network_append 
-    for two stations'''
-
-    # will loop over final arrays to creat the network
-    # also need to stack tlxc, tau and flag arrays? could always filter the tlxc and tau arrays before hand
-    # add arrays to check network i guess unless it's too much work
-    # could return indcices for where a certain condtion is met i.e flag[i]='B' which gives time stamps
-
+def network_global(data, component):
+    '''function to create both a directed and undirected global netowrk from data for component n,e or z, appling the xcor-peak-finding
+    and network appending function, network_append different pairs of stations combinatorially
+    for all pairs and returning text files for all directed and undirected netowrks'''
 
     md = pd.read_csv(data)
 
@@ -449,11 +483,11 @@ def network(data, component):
 
     for i in range(len(scb)):
 
-        # k is the output from the 2 station peak-finding and netowrk appending aglo
+        # k is the output from the 2 station peak-finding and netowrk appending algo
 
         print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations')
 
-        k = network_append(scb[i][0],scb[i][1],data, component)
+        k = network_append(scb[i][0],scb[i][1],md, component)
 
     # print list for displaying perm pairs from scb 
     # print(list(itertools.chain(scb)))
@@ -462,7 +496,7 @@ def network(data, component):
 
 
 
-    # plotting and saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
+    # saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
     # k[0] is the num of windows (which can overlap) (timestamps) for each network k[1] is the window size
 
     for i in [0,1,2,3]:
@@ -471,145 +505,130 @@ def network(data, component):
 
         dn.readwrite.edgelist.write_interactions(na[i], f'na{i}.txt')
 
-        # data = json_graph.node_link_data(dna[i])
-
-        # with open(f'dna{i}.json', 'w') as f:
-        #     json.dump(data, f)
-
-        # data = json_graph.node_link_data(na[i])
-
-        # with open(f'na{i}.json', 'w') as f:
-        #     json.dump(data, f)
-
-        # for j in range(k[0][i]):
-
-        #     fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
-
-        #     axs = axs.flatten()
-
-        #     # print(j)
-
-        #     dns = dna[i].time_slice(j)
-
-        #     ns = na[i].time_slice(j)
-
-        #     axs[0].set_axis_off()
-
-        #     axs[1].set_axis_off()
-           
-        #     nx.draw(dns, ax=axs[0],with_labels=True, font_weight='bold',arrowsize=20, edgecolor='red',width=1.2)
-
-        #     nx.draw(ns, ax=axs[1],with_labels=True , font_weight='bold',edgecolor='orange',width=1.2)
-
-        #     axs[0].set_title(f'digraph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
-
-        #     axs[1].set_title(f'graph with window epoch {j} out of {k[0][i]}, with window size {k[1][i]}, Pc{i+2}')
-
-        #     plt.show()
-
-    # for i in [0,1,2,3]:
-
-    #     if dna[i].order() == 0:
-
-    #         print('empty graph ana',i)
-
-    #     else:
-
-    #         print(dn.classes.function.nodes(dna[i]))
-
-    #         print(dn.classes.function.degree_histogram(dna[i]))
-
-    #         print(dna[i].size()/dna[i].order())
-
-    #     if na[i].order() == 0:
-
-    #         print('empty graph na',i)
-
-    #     else:
-
-    #         print(dn.classes.function.nodes(na[i]))
-
-    #         print(dn.classes.function.degree_histogram(na[i]))
-
-    #         print(na[i].size()/na[i].order())
-
-    # average degree code
-
-    avg_deg_matrix_dn = [[],[],[],[]]
-
-    avg_deg_matrix_n = [[],[],[],[]]
-
-    for i in [0,1,2,3]:
-
-        fig, axs = plt.subplots(figsize=(8, 8), nrows=2)
-
-        # obtains the last time stamp in the network
-
-        epochs = list(dna[i].stream_interactions())[-1][3]
-
-        # loop for slicing consecutive time stamps and calculating degree
-
-        for j in range(epochs):
-
-            dns = dna[i].time_slice(j,j+1)
-
-            ns = na[i].time_slice(j,j+1)
-
-            # number of edges divided by number of nodes for directed graph
-
-            # print(dns.size(),dns.order(), 'edges','nodes')
-            
-            # code segment for dirnetwork
-            if dns.order()!= 0:
-
-                k = dns.size()/dns.order()
-
-                # print(k, j, 'avg deg, count')
-
-                avg_deg_matrix_dn[i].append(k)
-
-            else:
-
-                avg_deg_matrix_dn[i].append(np.nan)
-
-            # code segment for undirnetwork
-
-            if ns.order()!= 0:
-
-                k = ns.size()/ns.order()
-
-                # print(k, j, 'avg deg, count')
-
-                avg_deg_matrix_n[i].append(k)
-
-            else:
-
-                avg_deg_matrix_n[i].append(np.nan)
-
-
-        countdn = np.arange(len(avg_deg_matrix_dn[i]))
-
-        countn = np.arange(len(avg_deg_matrix_n[i]))
-
-        # print(countdn,countn)
-
-        axs[0].set_title('dirnetwork')
-
-        axs[0].plot(countdn,avg_deg_matrix_dn[i])
-
-        axs[1].set_title('instantiouslly dirnetwork')
-
-        axs[1].plot(countn, avg_deg_matrix_n[i])
-
-        plt.show()
-
-    # at this point network should have some interaction values, so print so check if everything is working
-    # need to print interaction list of both directed and undirected graphs and compare with lags plots before moving forward
-    # strange that plot for each time slice, easier to check for i>0.
 
 
 # time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
-network('20201111-18-30-supermag.csv','e')
+# network_global('20201111-18-30-supermag.csv','e')
+
+def network_cluster(data, component, magp):
+    '''function to create both a directed and undirected (clust fixed in MLT) netowrk from data for component n,e or z, appling the xcor-peak-finding
+    and network appending function, network_append different pairs of stations combinatorially
+    for all pairs and returning text files for all directed and undirected netowrks'''
+
+    # magnetic local time 0 is midnight 6 dawn, 12 noon, 18 dusk 
+
+    # add parameters for dawn, dusk, midnight and noon
+
+    # dawn: 03:00-09:00 (ie 06:00 +/-3hrs)
+
+    # noon: 09:00:15:00 (12:00 +/- 3hrs)
+
+    # dusk:15:00-21:00
+
+    # midnight (21:00-03:00)
+
+    md = pd.read_csv(data)
+
+    # print(md.head())
+
+    # data set with only station names to be used as a label
+
+    s_labels = md.drop_duplicates(subset=['IAGA'])['IAGA']
+
+    num_stations = len(s_labels)
+
+    # s_labels = s_labels[0:3]
+
+    # creating data set to use in analysis to filter MLT values
+
+    if magp == 'dawn':
+        
+        mltpts = [3,9]
+
+    elif magp == 'noon':
+        
+        mltpts = [9,15]
+
+    elif magp == 'dusk':
+       
+        mltpts = [15,21]
+
+    elif magp == 'midnight':
+        
+        mltpts = [21,3]       
+
+    mltf = md[(md['MLT'] >= mltpts[0]) & (md['MLT'] <= mltpts[1])]
+
+    # ts1 = mltf[mltf['IAGA'] == s_labels[0]]
+    # ts2 = mltf[mltf['IAGA'] == 'PG2']
+
+    # print(mltf)
+
+    # print(ts2)
+
+    # print(mltfiltered[(mltfiltered['IAGA'].isin(['C04','C12']))])
+
+    # scb lists station pair permutations as Nc2 
+
+    scb = list(itertools.combinations(s_labels,2))
+
+    # print(scb)
+
+    # for loop over permutation pairs to calculate network connections between station pairs and append to network containers
+
+    for i in range(len(scb)):
+
+        # k is the output from the 2 station peak-finding and netowrk appending algo
+
+        print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations')
+
+        # the next algortihm will then select entire station times based on the filtered mlt values between date ranges
+
+        k = network_append(scb[i][0],scb[i][1],mltf, component)
 
 
+    # saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
+    # k[0] is the num of windows (which can overlap) (timestamps) for each network k[1] is the window size
+
+    # the time compenent for this dynamical network will measure how much the eath has moved 'time' 
+    # underneath the floating section
+
+    # for i in [0,1,2,3]:
+
+    #     dn.readwrite.edgelist.write_interactions(dna[i], f'networks_data/dna_spd_{magp}_Pc{i+1}{component}.txt')
+
+    #     dn.readwrite.edgelist.write_interactions(na[i], f'networks_data/na_spd_{magp}_Pc{i+1}{component}.txt')
+
+
+# code to save all cluster networks for given component
+
+# for i in ['dusk','midnight']:#'dawn','noon',
+#     network_cluster('20201111-18-30-supermag.csv','e',magp=i)
+network_cluster('20201111-18-30-supermag.csv','e',magp='dusk')
+
+
+# code to be used within if statments to plot wave forms if needed
+
+# fig, ax = plt.subplots(nrows=2, facecolor='w', edgecolor='k')
+# fig.subplots_adjust(hspace=0.8)
+
+# ax[0].plot(np.arange(len(y21)),y21, color='red', linestyle='--',label ='time series 1')
+
+# ax[0].plot(np.arange(len(y11)),y11, label ='time series 2')
+
+# ax[0].set_xlabel('Time (s)')
+
+# ax[0].set_ylabel('B (nT)')
+
+# ax[1].plot(lags0,rs)
+
+# ax[1].set_xlabel('Time lags (s)')
+
+# ax[1].set_ylabel('Normalised cross-correlation.')
+
+# ax[1].axvline(x=0,c='red',ls='--')
+
+# plt.grid()
+
+# plt.show()
 
