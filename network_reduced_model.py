@@ -287,33 +287,6 @@ def network_append( s1name, s2name, md, comp):
                     
                     t_end = t_end + step_size
 
-                    fig, ax = plt.subplots(nrows=2, facecolor='w', edgecolor='k')
-                    fig.subplots_adjust(hspace=0.8)
-
-                    ax[0].plot(np.arange(len(y21)),y21, color='red', linestyle='--',label ='time series 1')
-
-                    ax[0].plot(np.arange(len(y11)),y11, label ='time series 2')
-
-                    ax[0].set_xlabel('Time (s)')
-
-                    ax[0].set_ylabel('B (nT)')
-
-                    ax[1].plot(lags0,rs)
-
-                    ax[1].set_xlabel('Time lags (s)')
-
-                    ax[1].set_ylabel('Normalised cross-correlation.')
-
-                    ax[1].axvline(x=0,c='red',ls='--')
-
-                    ax[1].grid()
-
-                    ax[0].grid()
-
-                    ax[0].legend()
-
-                    plt.show()
-
                     continue
 
                 elif pn != 'A' and pp =='A':
@@ -510,8 +483,11 @@ def network_global(data, component):
 # time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
 # network_global('20201111-18-30-supermag.csv','e')
 
-def network_cluster(data, component, magp):
-    '''function to create both a directed and undirected (clust fixed in MLT) netowrk from data for component n,e or z, appling the xcor-peak-finding
+def network_cluster(data, component, cluster, intercluster=None):
+    '''function to create both a directed and undirected (cluster in fixed in MLT) 
+    and intercluster network between MLT sections noon, dawn, dusk and midnight
+    for intercluster functionality intercluster varible needs to be sets to MLT section string
+    netowrk from data for component n,e or z, appling the xcor-peak-finding
     and network appending function, network_append different pairs of stations combinatorially
     for all pairs and returning text files for all directed and undirected netowrks'''
 
@@ -531,52 +507,105 @@ def network_cluster(data, component, magp):
 
     # print(md.head())
 
-    # data set with only station names to be used as a label
-
-    s_labels = md.drop_duplicates(subset=['IAGA'])['IAGA']
-
-    num_stations = len(s_labels)
-
     # s_labels = s_labels[0:3]
 
-    # creating data set to use in analysis to filter MLT values
+    # creating dictionary to use in analysis to filter MLT values
 
-    if magp == 'dawn':
-        
-        mltpts = [3,9]
+    mltrange = {'dawn':[3,9],'noon':[9,15],'dusk':[15,21],'midnight':[21,3]}
 
-    elif magp == 'noon':
-        
-        mltpts = [9,15]
+    # need to add permutations labels --------------
 
-    elif magp == 'dusk':
-       
-        mltpts = [15,21]
+    if intercluster != None:
 
-    elif magp == 'midnight':
-        
-        mltpts = [21,3]       
+        # if statment to create intercluster (connections between two clusters) labels and dataset
 
-    mltf = md[(md['MLT'] >= mltpts[0]) & (md['MLT'] <= mltpts[1])]
+        mltpts = mltrange[cluster]
 
-    # ts1 = mltf[mltf['IAGA'] == s_labels[0]]
-    # ts2 = mltf[mltf['IAGA'] == 'PG2']
+        mltpts1 = mltrange[intercluster]
+
+        mltf = md[(md['MLT'] >= mltpts[0]) & (md['MLT'] <= mltpts[1])]
+
+        mltf1 = md[(md['MLT'] >= mltpts1[0]) & (md['MLT'] <= mltpts1[1])]
+
+        sl = '_'.join([cluster,intercluster])
+
+        s_labels = mltf.drop_duplicates(subset=['IAGA'])['IAGA']
+
+        s_labels1 = mltf1.drop_duplicates(subset=['IAGA'])['IAGA']
+
+        print(sl)
+
+        scb = list(itertools.product(s_labels, s_labels1))
+
+        print(scb)
+
+        # need to check MLT ranges and UTC time order
+
+        # outer join throw no data  away
+
+        mltf = pd.merge(mltf,mltf1, how='outer')
+
+    else:
+
+        mltpts = mltrange[cluster]
+
+        mltf = md[(md['MLT'] >= mltpts[0]) & (md['MLT'] <= mltpts[1])]
+
+        sl = cluster
+
+        s_labels = mltf.drop_duplicates(subset=['IAGA'])['IAGA']
+
+        scb = list(itertools.combinations(s_labels,2))
+
+        print(sl)
+
+        print(scb)
+
+
+
+    # num_stations = len(s_labels)
+
 
     # print(mltf)
 
-    # print(ts2)
+    # plotting code to check filtered data----------------------------
 
-    # print(mltfiltered[(mltfiltered['IAGA'].isin(['C04','C12']))])
+    # for i in range(0,16):
 
-    # scb lists station pair permutations as Nc2 
+    #     labeltest = mltf['IAGA'].iloc[i]
 
-    scb = list(itertools.combinations(s_labels,2))
+    #     # print(labeltest)
 
-    # print(scb)
+    #     labeldf = mltf[mltf['IAGA'] == labeltest]
 
-    # for loop over permutation pairs to calculate network connections between station pairs and append to network containers
+    #     # print('MLTrange',labeldf['MLT'],'expected MLT range',mltpts,'label',labeltest)
 
-    for i in range(len(scb)):
+    #     x = labeldf['MLT']
+
+    #     t = labeldf['Date_UTC']
+        
+    #     plt.plot( t,labeldf['dbn_geo'])
+
+    #     plt.xlabel('MLT')
+
+    #     plt.title(f'{labeltest} UTC range {min(t),max(t)}')
+
+    #     print(f'with UTC range {min(t),max(t)}')
+
+    #     # plt.legend()
+    #     plt.show()
+
+
+    # scb lists station pair permutations as Nc2 --------------------------------------------------------------
+
+    # scb = list(itertools.combinations(s_labels,2))
+
+    # # print(scb)
+
+    # # for loop over permutation pairs to calculate network connections between station pairs and append to network containers
+    # # maybe will cause an error if scb label not inside mltf
+
+    for i in range(4):#range(len(scb)):
 
         # k is the output from the 2 station peak-finding and netowrk appending algo
 
@@ -593,18 +622,22 @@ def network_cluster(data, component, magp):
     # the time compenent for this dynamical network will measure how much the eath has moved 'time' 
     # underneath the floating section
 
-    # for i in [0,1,2,3]:
+    for i in [0,1,2,3]:
 
-    #     dn.readwrite.edgelist.write_interactions(dna[i], f'networks_data/dna_spd_{magp}_Pc{i+1}{component}.txt')
+        dn.readwrite.edgelist.write_interactions(dna[i], f'networks_data/TESTdna_spd_{sl}_Pc{i+1}{component}.txt')
 
-    #     dn.readwrite.edgelist.write_interactions(na[i], f'networks_data/na_spd_{magp}_Pc{i+1}{component}.txt')
+        dn.readwrite.edgelist.write_interactions(na[i], f'networks_data/TESTna_spd_{sl}_Pc{i+1}{component}.txt')
 
 
 # code to save all cluster networks for given component
 
 # for i in ['dusk','midnight']:#'dawn','noon',
-#     network_cluster('20201111-18-30-supermag.csv','e',magp=i)
-network_cluster('20201111-18-30-supermag.csv','e',magp='dusk')
+#     network_cluster('20201111-18-30-supermag.csv','e',cluster=i)
+
+# test code to try labels
+
+
+network_cluster('20201111-18-30-supermag.csv','e',cluster='dusk', intercluster='noon')
 
 
 # code to be used within if statments to plot wave forms if needed
@@ -628,7 +661,11 @@ network_cluster('20201111-18-30-supermag.csv','e',magp='dusk')
 
 # ax[1].axvline(x=0,c='red',ls='--')
 
-# plt.grid()
+# ax[1].grid()
+
+# ax[0].grid()
+
+# ax[0].legend()
 
 # plt.show()
 
