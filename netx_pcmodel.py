@@ -8,7 +8,6 @@ from scipy.signal import butter, lfilter, freqz, find_peaks
 from PyAstronomy import pyaC # for zero crossing intrapolation
 import networkx as nx
 import matplotlib.pyplot as plt
-import dynetx as dn
 import itertools
 from collections import Counter
 import datetime
@@ -80,26 +79,6 @@ def xcorr(x, y, lags, wparr, mode='full'):
 
         return corr/norm1
 
-def dateflocal(date,ind):
-
-    ''' fuction to convert datetime utc formal to numpy array to be used for plotting.
-    where ind is the total number of time points needed from the date-time series'''
-
-    mask = date.index.isin(ind)
-
-    date = date[mask]
-
-    date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S')
-
-    # date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S') - timedelta(hours=6.1)
-
-    date = date.astype(str)
-
-    date = date.str.extract(f'(\d\d:\d\d:\d\d)', expand=True)
-
-    date = np.squeeze(date.values)
-
-    return date
 
 def closest_to_0(x):
 
@@ -210,331 +189,313 @@ def network_append( s1name, s2name, md, comp):
 
     step_size_array = []
 
+    # loop to calculate values for each of four Pc bands
 
+    for i in [0,1,2,3]:
 
-    for i, num in enumerate(tf):
-        if i<len(tf)-1:
+        # minimum window size 2xperiod for xcor
 
-            # minimum window size 2xperiod for xcor
+        ws = (tf[i+1] - tf[i])
 
-            ws = (tf[i+1] - tf[i])
+        window_size = nm*ws
 
-            window_size = nm*ws
+        # initialising time values
 
-            # initialising time values
+        t_start = 0
+        t_end = t_start + window_size
 
-            t_start = 0
-            t_end = t_start + window_size
+        # intial index to get mid slice values for time
 
-            # intial index to get mid slice values for time
+        t_mid = t_end//2
 
-            t_mid = t_end//2
+        # step_size for different Pc bands
 
-            # step_size for different Pc bands
+        step_size = (window_size * 3)//4 # amount of window overlap
 
-            step_size = (window_size * 3)//4 # amount of window overlap
+        # keep empty arrays otside of loop(s) if values needed to be returned outside of function
 
-            # keep empty arrays otside of loop(s) if values needed to be returned outside of function
+        min0lags = []
 
-            min0lags = []
+        min0vals = []
 
-            min0vals = []
+        flags = []
 
-            flags = []
+        # indices for time values
 
-            # indices for time values
+        t_inda = []
 
-            t_inda = []
+        t_inda.append(t_mid)
 
-            t_inda.append(t_mid)
+        # t_ind array above while loop so can have one additional value before while loop terminates
 
-            # t_ind array above while loop so can have one additional value before while loop terminates
+        step_size_array.append(step_size)
 
-            step_size_array.append(step_size)
+        while t_end <= len(s1):
 
-            while t_end <= len(s1):
+            counter = t_end//window_size
 
-                counter = t_end//window_size
+            # print(counter)
 
-                # print(counter)
+            # y11 , y21 filtering time series to use with TLXC
 
-                # y11 , y21 filtering time series to use with TLXC
+            y11 = butter_bandpass_filter(s1[t_start:t_end], 1/(tf[i+1]), 1/tf[i], fs, order=order)
+            y21 = butter_bandpass_filter(s2[t_start:t_end], 1/(tf[i+1]), 1/tf[i], fs, order=order)
 
-                y11 = butter_bandpass_filter(s1[t_start:t_end], 1/(tf[i+1]), 1/tf[i], fs, order=order)
-                y21 = butter_bandpass_filter(s2[t_start:t_end], 1/(tf[i+1]), 1/tf[i], fs, order=order)
+            # need to add code here to take utc time and 
 
-                # need to add code here to take utc time and 
+            lags0 = np.arange(-(len(y21) - 1), len(y21))
 
-                lags0 = np.arange(-(len(y21) - 1), len(y21))
+            rs = xcorr(y11,y21,lags0,wparr=1)
 
-                rs = xcorr(y11,y21,lags0,wparr=1)
+            # gives values of lags at peaks and troughs satifsfying condition in C0peaks, and peak closest to 0
+            # returns 'A' if no peaks found
 
-                # gives values of lags at peaks and troughs satifsfying condition in C0peaks, and peak closest to 0
-                # returns 'A' if no peaks found
+            pp = c0peak(rs,lags0)
 
-                pp = c0peak(rs,lags0)
+            pn = c0peak(-rs,lags0)
 
-                pn = c0peak(-rs,lags0)
+            # if statment bellow to catogrise noise into flag array for all cases and append nan into other arrays to keep time dimensionality
+            # continue statment restarts the while loop rather than exiting out of it with break
+            # first if statment, after or, to prevent xcor with a flat line at zero, otherwise period finding function needs modifcation
+            # preventing xcor with noise
 
-                # if statment bellow to catogrise noise into flag array for all cases and append nan into other arrays to keep time dimensionality
-                # continue statment restarts the while loop rather than exiting out of it with break
-                # first if statment, after or, to prevent xcor with a flat line at zero, otherwise period finding function needs modifcation
-                # preventing xcor with noise
+            # could speed up code by checking second condition of first if then pp and pn 
 
-                # could speed up code by checking second condition of first if then pp and pn 
-
-                if (pn == 'A' and pp =='A') or (np.max(abs(y11))<0.1 or np.max(abs(y21))<0.1) :
-                    
-                    min0lags.append(np.nan)
-
-                    min0vals.append(np.nan)
-
-                    flags.append('A')
-
-                    # updating time values
-
-                    t_start = t_start + step_size
-                    
-                    t_end = t_end + step_size
-
-                    t_mid = t_mid +step_size
-
-                    t_inda.append(t_mid)
-
-                    continue           
-
-                elif pn == 'A' and pp !='A':
-
-                    # uncomment if 'B' non-wave like correlated needed in network
-
-                    # min0lags.append(pp[0])
-
-                    # min0vals.append(rs[np.where(lags0==pp[0])])
-
-                    min0lags.append(np.nan)
-
-                    min0vals.append(np.nan)
-
-                    flags.append('B')
-
-                    t_start = t_start + step_size
-                    
-                    t_end = t_end + step_size
-
-                    t_mid = t_mid +step_size
-
-                    t_inda.append(t_mid)
-
-                    continue
-
-                elif pn != 'A' and pp =='A':
-
-                    # uncomment if 'B' non-wave like correlated needed in network
-
-                    # min0lags.append(pn[0])
-
-                    # min0vals.append(rs[np.where(lags0==pn[0])])
-
-                    flags.append('B')
-
-                    min0lags.append(np.nan)
-
-                    min0vals.append(np.nan)
-
-                    t_start = t_start + step_size
-                    
-                    t_end = t_end + step_size
-
-                    t_mid = t_mid +step_size
-
-                    t_inda.append(t_mid)
-
-                    continue
-
-                # now we can filter for case 'C' wave like which is what is needed
-
-                # lag values at peaks
-
-                mlagsp = pp[1]
-
-                # gives lag value at peak closest to 0
-
-                mlagp = pp[0]
-
-                # now finding lag values at troughs
-
-                # lag values at troughs
-
-                mlagsn = pn[1]
-
-                # print(mlagsn)
-
-                # gives lag value of trough closest to 0
-
-                mlagn = pn[0]
-
-                # print(mlagn)
-
-                # extremum (peak or trough) lag closest to zero
-
-                extr_0l = closest_to_0([mlagp,mlagn])
-
-                # print(extr_0l)
-
-                # value of xcor at extr_0
-
-                xc0l = rs[np.where(lags0==extr_0l)]
-
-                # ps is average singal period and pxc xcor period for use in flagging
-
-                ps = 0.5 * (fperiod(y11) + fperiod(y21))
-
-                pxc = fperiod(rs)
-
-                # print(ps,pxc)
-
-                # statments to check if data is strictly wave-like 
-                # so ps approx. pxc cannot be smaller, nature of xcor)
-                # xcor cannot have small period then average period of both signals
-                # so only > bound used for range 
-
-                if pxc > ps*1.56:
-
-                    # uncomment if 'B' non-wave like correlated needed in network
-
-                    # min0lags.append(extr_0l)
-
-                    # min0vals.append(xc0l)
-
-                    min0lags.append(np.nan)
-
-                    min0vals.append(np.nan)
-
-                    flags.append('B')
-
-                    t_start = t_start + step_size
-                    
-                    t_end = t_end + step_size
-
-                    t_mid = t_mid +step_size
-
-                    t_inda.append(t_mid)
-
-                    continue
-
-                else:
-
-                    min0lags.append(extr_0l)
-
-                    min0vals.append(xc0l)
-
-                    flags.append('C')
-
-                    t_start = t_start + step_size
-                    
-                    t_end = t_end + step_size
-
-                    t_mid = t_mid +step_size
-
-                    t_inda.append(t_mid)
-
-                # will loop over final arrays to creat the network
-                # also need to stack tlxc, tau and flag arrays? could always filter the tlxc and tau arrays before hand
-                # add arrays to check network i guess unless it's too much work
-                # could return indcices for where a certain condtion is met i.e flag[i]='B' which gives time stamps
-
-                # range of min0lags, min0vals and flags the same for each band
-                # index i will be the window number
-
-                # for loop for parallel interation to create networks
-
-                # np.nan conditionals always return false
-
-                # print(t_inda, 'midtvales')
-
-                # print(window_size,'windisze')
-
-                # print(min0lags, 'lags')
-
-                # print(len(t_inda),len(min0lags),'lens')
-
-
-
-            for j, (xcval, lag) in enumerate(zip(min0vals,min0lags)):
-
-                # print(j, xcval, lag, 'j, xcval, lag')
-
-                # print(t_inda[j], j, 'tind,j')
-
-                # print(utc1.iloc[t_inda[j]],utc2.iloc[t_inda[j]])
-
-                # print(mlt1.iloc[t_inda[j]],mlt2.iloc[t_inda[j]])
-
-                def dictt(ind):
-                    # function to create dictonary to label network with station names and loop index j
-
-                    # utc is the same for both stations however need to check for clusters '2015-03-17T05:18:43' '2015-03-17T05:24:44'
-
-                    d = { 't_window':ind, f'UTC1': utc1.iloc[t_inda[ind]],
-
-                    f'UTC2': utc2.iloc[t_inda[ind]], f'MLT1': mlt1.iloc[t_inda[ind]],
-
-                    f'MLT2': mlt2.iloc[t_inda[ind]] }
-
-                    return d
+            if (pn == 'A' and pp =='A') or (np.max(abs(y11))<0.1 or np.max(abs(y21))<0.1) :
                 
-                if xcval>0 and lag >0:
-                    dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+                min0lags.append(np.nan)
 
-                elif xcval>0 and lag <0:
-                    dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dictt(j))
+                min0vals.append(np.nan)
 
-                elif xcval<0 and lag <0:
-                    # print(i,'i','cond3','j',j)
-                    dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+                flags.append('A')
 
-                elif xcval<0 and lag>0:
-                    dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dictt(j))
+                # updating time values
 
-                # maybe add else: instead of elif lag==0 to speed up code
-                elif lag==0:
-                    na[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+                t_start = t_start + step_size
+                
+                t_end = t_end + step_size
+
+                t_mid = t_mid +step_size
+
+                t_inda.append(t_mid)
+
+                continue           
+
+            elif pn == 'A' and pp !='A':
+
+                # uncomment if 'B' non-wave like correlated needed in network
+
+                # min0lags.append(pp[0])
+
+                # min0vals.append(rs[np.where(lags0==pp[0])])
+
+                min0lags.append(np.nan)
+
+                min0vals.append(np.nan)
+
+                flags.append('B')
+
+                t_start = t_start + step_size
+                
+                t_end = t_end + step_size
+
+                t_mid = t_mid +step_size
+
+                t_inda.append(t_mid)
+
+                continue
+
+            elif pn != 'A' and pp =='A':
+
+                # uncomment if 'B' non-wave like correlated needed in network
+
+                # min0lags.append(pn[0])
+
+                # min0vals.append(rs[np.where(lags0==pn[0])])
+
+                flags.append('B')
+
+                min0lags.append(np.nan)
+
+                min0vals.append(np.nan)
+
+                t_start = t_start + step_size
+                
+                t_end = t_end + step_size
+
+                t_mid = t_mid +step_size
+
+                t_inda.append(t_mid)
+
+                continue
+
+            # now we can filter for case 'C' wave like which is what is needed
+
+            # lag values at peaks
+
+            mlagsp = pp[1]
+
+            # gives lag value at peak closest to 0
+
+            mlagp = pp[0]
+
+            # now finding lag values at troughs
+
+            # lag values at troughs
+
+            mlagsn = pn[1]
+
+            # print(mlagsn)
+
+            # gives lag value of trough closest to 0
+
+            mlagn = pn[0]
+
+            # print(mlagn)
+
+            # extremum (peak or trough) lag closest to zero
+
+            extr_0l = closest_to_0([mlagp,mlagn])
+
+            # print(extr_0l)
+
+            # value of xcor at extr_0
+
+            xc0l = rs[np.where(lags0==extr_0l)]
+
+            # ps is average singal period and pxc xcor period for use in flagging
+
+            ps = 0.5 * (fperiod(y11) + fperiod(y21))
+
+            pxc = fperiod(rs)
+
+            # print(ps,pxc)
+
+            # statments to check if data is strictly wave-like 
+            # so ps approx. pxc cannot be smaller, nature of xcor)
+            # xcor cannot have small period then average period of both signals
+            # so only > bound used for range 
+
+            if pxc > ps*1.56:
+
+                # uncomment if 'B' non-wave like correlated needed in network
+
+                # min0lags.append(extr_0l)
+
+                # min0vals.append(xc0l)
+
+                min0lags.append(np.nan)
+
+                min0vals.append(np.nan)
+
+                flags.append('B')
+
+                t_start = t_start + step_size
+                
+                t_end = t_end + step_size
+
+                t_mid = t_mid +step_size
+
+                t_inda.append(t_mid)
+
+                continue
+
+            else:
+
+                min0lags.append(extr_0l)
+
+                min0vals.append(xc0l)
+
+                flags.append('C')
+
+                t_start = t_start + step_size
+                
+                t_end = t_end + step_size
+
+                t_mid = t_mid +step_size
+
+                t_inda.append(t_mid)
 
 
-        # gives num of windows in network, last value gets updates over
+            # for loop for parallel interation to create networks
 
-        # in order to find Pc ranges require only diference values between indices hence one redundant value below arrays
+            # np.nan conditionals always return false
 
-        # t = np.arange(len(min0lags))*step_size
+        for j, (xcval, lag) in enumerate(zip(min0vals,min0lags)):
 
-        # # print(window_size,'window_size')
+            # print(j, xcval, lag, 'j, xcval, lag')
 
-        # print(t, len(t), 'time array')
+            # print(t_inda[j], j, 'tind,j')
 
-        # s = np.roll(t_inda,-1) - t_inda
+            # print(utc1.iloc[t_inda[j]],utc2.iloc[t_inda[j]])
 
-        # print(t_inda, len(t_inda),'mid time array')
+            # print(mlt1.iloc[t_inda[j]],mlt2.iloc[t_inda[j]])
 
-        # print( s,'mid time spacing array')
+            def dictt(ind):
+                # function to create dictonary to label network with station names and loop index j
 
-        # print(len(min0lags),'0lags')
+                # utc is the same for both stations however need to check for clusters '2015-03-17T05:18:43' '2015-03-17T05:24:44'
 
-        num_windows.append(len(min0lags))
+                d = { 't_window':ind, f'UTC1': utc1.iloc[t_inda[ind]],
 
-        window_size_a.append(window_size)
+                f'UTC2': utc2.iloc[t_inda[ind]], f'MLT1': mlt1.iloc[t_inda[ind]],
 
-        # # can comment out when running large code, always be the same
+                f'MLT2': mlt2.iloc[t_inda[ind]] }
 
-        # np.save('step_size_arr.npy',step_size_array)
+                return d
+            
+            if xcval>0 and lag >0:
+                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+
+            elif xcval>0 and lag <0:
+                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dictt(j))
+
+            elif xcval<0 and lag <0:
+                # print(i,'i','cond3','j',j)
+                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+
+            elif xcval<0 and lag>0:
+                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dictt(j))
+
+            # maybe add else: instead of elif lag==0 to speed up code
+            elif lag==0:
+                na[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+
+
+    # gives num of windows in network, last value gets updates over
+
+    # in order to find Pc ranges require only diference values between indices hence one redundant value below arrays
+
+    # t = np.arange(len(min0lags))*step_size
+
+    # # print(window_size,'window_size')
+
+    # print(t, len(t), 'time array')
+
+    # s = np.roll(t_inda,-1) - t_inda
+
+    # print(t_inda, len(t_inda),'mid time array')
+
+    # print( s,'mid time spacing array')
+
+    # print(len(min0lags),'0lags')
+
+    num_windows.append(len(min0lags))
+
+    window_size_a.append(window_size)
+
+    # # can comment out when running large code, always be the same
+
+    # np.save('step_size_arr.npy',step_size_array)
 
 
     return num_windows , window_size_a
 
     
 
-def network_global(data, component):
-    '''function to create both a directed and undirected global netowrk from data for component n,e or z, appling the xcor-peak-finding
-    and network appending function, network_append different pairs of stations combinatorially
+def network_global(data, comp):
+    '''function to create both a directed and undirected global netowrk from data for componenet comp n,e or z, 
+    appling the xcor-peak-finding and network appending function, network_append different pairs of stations combinatorially
     for all pairs and returning text files for all directed and undirected netowrks'''
 
     md = pd.read_csv(data)
@@ -554,7 +515,7 @@ def network_global(data, component):
 
     filt_labs = [n1 for n1,n2 in filt_labs if n2==1]
 
-    s_labels = filt_labs[0:10]
+    s_labels = filt_labs[0:5]
 
     # scb lists station pair permutations as Nc2 
 
@@ -571,7 +532,7 @@ def network_global(data, component):
 
         print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations')
 
-        k = network_append(scb[i][0],scb[i][1],md, component)
+        network_append(scb[i][0],scb[i][1],md, comp)
 
 
     # # print list for displaying perm pairs from scb 
@@ -584,19 +545,16 @@ def network_global(data, component):
     # # saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
     # # k[0] is the num of windows (which can overlap) (timestamps) for each network k[1] is the window size
 
-    for i in [0,1,2,3]:
+    # for i in [0,1,2,3]:
 
-        nx.write_edgelist(dna[i], f'networks_data/dna{i}dyntest.txt')
+    #     nx.write_edgelist(dna[i], f'networks_data/dna{i}{comp}dyntest.txt')
 
-        nx.write_edgelist(na[i], f'networks_data/na{i}dyntest.txt')
-
+    #     nx.write_edgelist(na[i], f'networks_data/na{i}{comp}dyntest.txt')
 
 
 # time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
 
 network_global('20201111-18-30-supermag.csv','e')
-
-
 
 
 # code to save all cluster networks for given component
