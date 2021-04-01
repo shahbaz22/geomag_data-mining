@@ -11,27 +11,6 @@ import datetime
 import matplotlib.dates as mdates
 import pdb
 
-def dateflocal(date,ind): 
-	'''fuction to convert datetime utc formal to numpy array to be used for plotting 
-	where ind is the total number of time points needed from the date-time series'''
-
-	mask = date.index.isin(ind)
-
-	date = date[mask]
-
-	date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S')
-
-	# date = pd.to_datetime(date, format='%Y/%m/%d %H:%M:%S') - timedelta(hours=6.1)
-
-	date = date.astype(str)
-
-	date = date.str.extract(f'(\d\d:\d\d:\d\d)', expand=True)
-
-	date = np.squeeze(date.values)
-
-	return date
-
-
 def load_arrays():
 	'''function to load text arrays to load 4 directed and 4 undirected netowrks from label string arrays nlc and dlc (both arrays with four strings) 
 	to create dynamical network objects which can be used for plotting where magp is the cluster to be used and comp the component n,e,z'''
@@ -48,9 +27,7 @@ def load_arrays():
 		
 		dlc[i] = f'networks_data/dna{i}spd.txt'
 
-		# netdata1 = open(nlc[i],"rb")
-
-		# netdata2 = open(dlc[i],"rb")
+		print(f'loading Pc{i+2} netowrks')
 
 		# nlc and dlc text array overwritted to contain networks
 
@@ -118,23 +95,39 @@ def save_k_vs_t_global(dn, nn):
 
 	# arrays used for plotting gaphs see cluster function for details
 
-	matrix_dn = [[[]]*4]*2
+	dict_dn = [[[]]*4]*2
 
-	matrix_n = [[[]]*4]*2
+	dict_n = [[[]]*4]*2
 
 	for i in [0,1,2,3]:
+
+		# obtains only UTC times which have edges
+
+		utc_times_dn = [ d['attr_dict']['UTC2'] for n1,n2,d in dn[i].edges(data=True) ]
+
+		# removing duplicates in utc_times_dn
+
+		times_dn = list(set(utc_times_dn))
+
+		# ordering via time order
+
+		times_dn = sorted(times_dn, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'))
+
+		dict_dn['times'][i].append(times_dn)
+	
+		utc_times_nn = [ d['attr_dict']['UTC2'] for n1,n2,d in nn[i].edges(data=True)]
+
+		times_n = list(set(utc_times_nn))
+
+		times_n = sorted(times_n, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'))
+
+		dict_n['times'][i].append(times_n)
 
 		# obtains the ordered time stamps in the network
 
 		time_stamps_dn = [d['attr_dict']['t_window'] for n1,n2,d in dn[i].edges(data=True)]
 
 		time_stamps_nn = [d['attr_dict']['t_window'] for n1,n2,d in nn[i].edges(data=True)]
-
-		# print('timestamps_dn',time_stamps_dn)
-
-		# print('timestamps_nn',time_stamps_nn)
-			# key= lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'))
-		# need to a
 
 		# remove duplicates
 			
@@ -150,11 +143,9 @@ def save_k_vs_t_global(dn, nn):
 
 			ts_edge_list1 = [ (n1,n2) for n1,n2,d in dn[i].edges(data=True) if d['attr_dict']['t_window'] == j ]
 
-			utc_times = [(j, d['attr_dict']['UTC2']) for n1,n2,d in dn[i].edges(data=True) if d['attr_dict']['t_window'] == j]
-
 			# utc_times = sorted(list(set(utc_times)), key=lambda tup: tup[0]) 
 
-			matrix_dn[0][i].append(list(set(utc_times)))
+			dict_dn['times'][i].append(list(set(utc_times)))
 
 			# count all edges in network at specific time (t_slice_node_list) divided by all unique nodes present, dont use g.degree
 			
@@ -162,16 +153,14 @@ def save_k_vs_t_global(dn, nn):
 
 			# like double for loop, one loop for acessing tuple value and the next for unpacking it
 
-			ts_node_list1 = list(set([val for tup in ts_edge_list1 for val in tup]))
+			ts_node_list1 = list(set(np.reshape(ts_edge_list1, len(ts_edge_list1)*2)))
 
 		
-			if len(ts_node_list1) != 0:
+			avg_deg = len(ts_edge_list1) / len(ts_node_list1)
 
-				avg_deg = len(ts_edge_list1) / len(ts_node_list1)
+			# print(avg_deg, j, 'avg deg, count rc')
 
-				# print(avg_deg, j, 'avg deg, count rc')
-
-				matrix_dn[1][i].append(avg_deg)
+			dict_dn['avg_k'][i].append(avg_deg)
 
 
 		# loop for slicing consecutive time stamps and calculating degree for undirected network
@@ -180,9 +169,7 @@ def save_k_vs_t_global(dn, nn):
 
 			ts_edge_list2 = [ (n1,n2) for n1,n2,d in nn[i].edges(data=True) if d['attr_dict']['t_window'] == j ]
 
-			utc_times = [(j, d['attr_dict']['UTC2']) for n1,n2,d in nn[i].edges(data=True) if d['attr_dict']['t_window'] == j]
-
-			matrix_n[0][i].append(list(set(utc_times)))
+			dict_n['times'][i].append(list(set(utc_times)))
 
 			# count all edges in network at specific time (t_slice_node_list) divided by all unique nodes present, dont use g.degree
 			
@@ -192,24 +179,16 @@ def save_k_vs_t_global(dn, nn):
 
 			ts_node_list2 = list(set([val for tup in ts_edge_list2 for val in tup]))
 				
-			# code segment for undirnetwork
+			avg_deg = len(ts_edge_list2) / len(ts_node_list2)
 
-			if len(ts_node_list2) != 0:
-
-				avg_deg = len(ts_edge_list2) / len(ts_node_list2)
-
-				matrix_n[1][i].append(avg_deg)
+			dict_n['avg_k'][i].append(avg_deg)
 
 
-	np.save(f'networks_data/spd_analysis/avg_deg_global_dn.npy',matrix_dn)
-	np.save(f'networks_data/spd_analysis/avg_deg_global_n.npy',matrix_n)
+	np.save(f'networks_data/spd_analysis/avg_deg_global_dn.npy',dict_dn)
+	np.save(f'networks_data/spd_analysis/avg_deg_global_n.npy',dict_n)
 
-	# files.download(f'networks_data/spd_analysis/avg_deg_Pc_dn.npy',avg_deg_matrix_dn)
-	# files.download(f'networks_data/spd_analysis/avg_deg_Pc_n.npy',avg_deg_matrix_n)
-
-	# files.download(f'networks_data/spd_analysis/avg_deg_time_Pc_dn.npy',times_dn)
-	# files.download(f'networks_data/spd_analysis/avg_deg_time_Pc_n.npy',times_nn)
-					
+	# files.download(f'networks_data/spd_analysis/avg_deg_Pc_dn.npy',avg_deg_dict_dn)
+	# files.download(f'networks_data/spd_analysis/avg_deg_Pc_n.npy',avg_deg_dict_n)					
 
 
 def save_k_vs_t_cluster(dn, nn, cluster):
@@ -228,13 +207,24 @@ def save_k_vs_t_cluster(dn, nn, cluster):
 
     # midnight (21:00-03:00)
 
-	# arrays used for plotting gaphs use timesvalues in matrix_dn[0][i].app, for <k> matrix_dn[1][i]
-	# for nodes .app,matrix_dn[2][i].app in total each matrix has 12 arrays to store values inside with shape [[[], [], [], []], [[], [], [], []], [[], [], [], []]]
+	# arrays used for plotting gaphs use timesvalues in dict_dn['times'][i].app, for <k> dict_dn['avg_k'][i]
+	# for nodes .app,dict_dn['n_nodes'][i].app in total each dict has 12 arrays to store values inside with shape [[[pc2t], [pc3t], [pc4t], [pc5t]], [[pc2k], [], [], []], [[pc2n], [], [], []]]
 
-	matrix_dn = [[[]]*4]*3
 
-	matrix_n = [[[]]*4]*3
+	# dict within dict for assings Pc values for all bands used for relevent parameter to store values
 
+	dict_dn = {}
+
+	dict_n ={}
+
+	for i in ['times', 'avg_k', 'n_nodes']:
+
+		dict_dn[i] = {0:[],1:[],2:[],3:[]}
+
+		dict_n[i] = {0:[],1:[],2:[],3:[]}
+
+	print('dict', dict_dn)
+	
 	# dictonary and values used to obtain mlt ranges to filter for
 
 	mltr = {'dawn':[3,9],'noon':[9,15],'dusk':[15,21],'midnight':[21,3]}
@@ -245,15 +235,9 @@ def save_k_vs_t_cluster(dn, nn, cluster):
 
 	for i in [0,1,2,3]:
 
-		print(f'pc{i+2}, {cluster} cluster {i}')
-
-		# obtains the ordered time stamps in UTC from MLT range
+		# time stamps for looping, obtains only those timestamps which have edges
 
 		time_stamps_dn = [d['attr_dict']['t_window'] for n1,n2,d in dn[i].edges(data=True) 
-		if mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
-
-
-		time_stamps_nn = [d['attr_dict']['t_window'] for n1,n2,d in nn[i].edges(data=True) 
 		if mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
 
 		# could append none to empty degree array to use for plotting
@@ -264,103 +248,123 @@ def save_k_vs_t_cluster(dn, nn, cluster):
 
 			continue
 
-		elif len(time_stamps_nn) == 0:
+		# obtains only UTC times which have edges
 
-			print(f'no values for Pc{i+2} {cluster} directed network array ')
+		utc_times_dn = [ d['attr_dict']['UTC2'] for n1,n2,d in dn[i].edges(data=True) 
+		if mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
 
-			continue
+		# removing duplicates in utc_times_dn
+
+		times_dn = list(set(utc_times_dn))
+
+		# ordering via time order
+
+		times_dn = sorted(times_dn, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'))
+
+		dict_dn['times'][i].extend(times_dn)
 
 		# remove duplicates
 			
 		time_stamps_dn = sorted(list(set(time_stamps_dn)))
 		
-		time_stamps_nn = sorted(list(set(time_stamps_nn)))
-
-		# print(time_stamps_dn, f'timestamaps dir {i}')
-
-		# can also save relevent utc ARRAY
-
 		# loop for slicing consecutive time stamps and calculating degree for directed network
+		
+		print(f'pc{i+2}, dir {cluster}')
 
 		for j in time_stamps_dn:
 
-			mlt_edge_list1 = [ (n1,n2) for n1,n2,d in dn[i].edges(data=True) 
-			if d['attr_dict']['t_window']==j and mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
+			# print(f'pc{i+2}, dir {cluster}, {j} out of {max(time_stamps_dn)}')
 
-			utc_times = [(j, d['attr_dict']['UTC2']) for n1,n2,d in dn[i].edges(data=True) 
+			mlt_edge_list1 = [ [ n1, n2 ] for n1,n2,d in dn[i].edges(data=True) 
 			if d['attr_dict']['t_window']==j and mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
 
 			# utc_check = [(n1, n2 ,j, d['attr_dict']['UTC2'], d['attr_dict']['MLT1'], d['attr_dict']['MLT2']) for n1,n2,d in dn[i].edges(data=True) 
 			# if d['attr_dict']['t_window']==j and mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
 			
 			# print(f'checking dir {cluster} clusters pc{i+2}', utc_check)
-
-			# appending time values
-			matrix_dn[0][i].append(list(set(utc_times)))
-
-			# count all edges in network at specific time (t_slice_node_list) divided by all unique nodes present, dont use g.degree
 			
-			# take a unique list of nodes in given time window
+			# reduced dim of edgelist and remove duplicated
 
-			# like double for loop, one loop for acessing tuple value and the next for unpacking it
+			mlt_node_list1 = list(set(np.reshape(mlt_edge_list1, len(mlt_edge_list1)*2)))
 
-			mlt_node_list1 = list(set([val for tup in mlt_edge_list1 for val in tup]))
-		
 			num_nodes = len(mlt_node_list1)
 
-			if num_nodes != 0:
+			avg_deg = len(mlt_edge_list1) / num_nodes
 
-				avg_deg = len(mlt_edge_list1) / num_nodes
+			# print(avg_deg, j, 'avg deg, count rc')
 
-				# print(avg_deg, j, 'avg deg, count rc')
+			dict_dn['avg_k'][i].append(avg_deg)
 
-				matrix_dn[1][i].append(avg_deg)
+			dict_dn['n_nodes'][i].append(num_nodes)
 
-				matrix_dn[2][i].append(num_nodes)
+	# loop for slicing consecutive time stamps and calculating degree for undirected network
 
+	for i in [0,1,2,3]:
 
-		# loop for slicing consecutive time stamps and calculating degree for undirected network
+		print(f'pc{i+2}, undir {cluster}')
+
+		time_stamps_nn = [d['attr_dict']['t_window'] for n1,n2,d in nn[i].edges(data=True) 
+		if mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
+
+		if len(time_stamps_nn) == 0:
+
+			print(f'no values for Pc{i+2} {cluster} directed network array ')
+
+			continue
+		
+		utc_times_nn = [ d['attr_dict']['UTC2'] for n1,n2,d in nn[i].edges(data=True) 
+
+		if mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
+
+		times_n = list(set(utc_times_nn))
+
+		times_n = sorted(times_n, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'))
+
+		dict_n['times'][i].extend(times_n)
+
+		time_stamps_nn = sorted(list(set(time_stamps_nn)))
+
 			
 		for j in time_stamps_nn:
 
-			mlt_edge_list2 = [ (n1,n2) for n1,n2,d in nn[i].edges(data=True) 
+			# print(f'pc{i+2}, undir ,{cluster}, {j} out of {max(time_stamps_nn)}')
+
+			mlt_edge_list2 = [ [ n1,n2 ] for n1,n2,d in nn[i].edges(data=True) 
 			if d['attr_dict']['t_window']==j and mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
 
-			utc_times = [(j, d['attr_dict']['UTC2']) for n1,n2,d in nn[i].edges(data=True) 
-			if d['attr_dict']['t_window']==j and mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
-
-			# utc_check2 = [(n1, n2 ,j, d['attr_dict']['UTC2'], d['attr_dict']['MLT1'], d['attr_dict']['MLT2']) for n1,n2,d in nn[i].edges(data=True) 
-			# if d['attr_dict']['t_window']==j and mlt1 <= d['attr_dict']['MLT1'] < mlt2 and mlt1 <= d['attr_dict']['MLT2'] < mlt2]
-			
-			# print(f'checking undir {cluster} clusters pc{i+2}', utc_check2)
-
-			matrix_n[0][i].append(list(set(utc_times)))
-
-			mlt_node_list2 = list(set([val for tup in mlt_edge_list2 for val in tup]))
+			mlt_node_list2 = list(set(np.reshape(mlt_edge_list2, len(mlt_edge_list2)*2)))
 				
 			num_nodes2 = len(mlt_node_list2)
 
-			if num_nodes2 != 0:
+			avg_deg = len(mlt_edge_list2) / num_nodes2
 
-				avg_deg = len(mlt_edge_list2) / num_nodes2
+			dict_n['avg_k'][i].append(avg_deg)
 
-				matrix_dn[1][i].append(avg_deg)
+			dict_n['n_nodes'][i].append(num_nodes2)
 
-				matrix_dn[2][i].append(num_nodes2)
+
+		# print('times_dn',times_dn, len(times_dn))
+		# print('times_n', times_n, len(times_n))
+
+
+		# print(f'dict dn times {i}',dict_dn['times'][i], len(dict_dn['times'][i]))
+		# print(f'dict n times {i}',dict_n['times'][i],len(dict_n['times'][i]))
+
+		# print(dict_dn['avg_k'][i], len(dict_dn['avg_k'][i]))
+		# print(dict_n['avg_k'][i],len(dict_n['avg_k'][i]))
 
 	# for saving files more completley in the future can add the network array with comp value to output save file
 
-	np.save(f'networks_data/spd_analysis/avg_deg_results_{cluster}_dn.npy', matrix_dn)
-	np.save(f'networks_data/spd_analysis/avg_deg_results_{cluster}_n.npy', matrix_n)
+	# np.save(f'networks_data/spd_analysis/avg_deg_results_q_{cluster}_dn.npy', dict_dn)
+	# np.save(f'networks_data/spd_analysis/avg_deg_results_q_{cluster}_n.npy', dict_n)
+
+	return dict_dn, dict_n
 			
 
 
+def plot_k_vs_t(dict_dn, dict_n, plots, label=False,):
 
-
-
-def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
-
-	'''code to plot the average degree of networkx directed and undirected multi-dim network parameters matrix_dn, matrix_n 
+	'''code to plot the average degree of networkx directed and undirected multi-dim network parameters dict_dn, dict_n 
 	with label the name of the cluster and to sepcify plots of undirected
 	or directed netwrok or both using plots variable using 'all','dir','undir to determin which results to return on the plots'''
 
@@ -376,7 +380,7 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 	
 	md = pd.read_csv('SME_SMR_spd.csv')
 
-	print(md.head())
+	# print(md.head())
 
 	index_date = md['Date_UTC']
 
@@ -384,24 +388,26 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 
 	smr = md['SMR']
 
-	print('start_time, end_time',index_date.iloc[0],index_date.iloc[-1])
+	# print('start_time, end_time',index_date.iloc[0],index_date.iloc[-1])
 
 	# sub divisions of time axis
 
-	n = 7
+	# n = 7
 
-	indx_mask = np.linspace(0,len(index_date)-1,n)
+	# indx_mask = np.linspace(0,len(index_date)-1,n)
 
-	datel = dateflocal(index_date,indx_mask)
+	# datel = dateflocal(index_date,indx_mask)
+
+	axsmer = [ datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S') for x in index_date ]
 
 	fig, ax = plt.subplots(nrows=6, figsize=(8, 15), facecolor='w', edgecolor='k')
 	fig.subplots_adjust(hspace=0.8)
 
-	ax[0].plot(index_date,sme, color='black')
+	ax[0].plot(axsmer,sme, color='black')
 
-	ax[0].set_xticks(indx_mask)
+	# ax[0].set_xticks(indx_mask)
 
-	ax[0].set_xticklabels(datel)
+	# ax[0].set_xticklabels(datel)
 
 	ax[0].set_xlabel('time (hh:mm:ss)')
 
@@ -409,11 +415,20 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 
 	ax[0].grid()
 
-	ax[1].plot(index_date,smr, color='g')
+	datemin = np.datetime64(index_date.iloc[0])
+	datemax = np.datetime64(index_date.iloc[-1])
 
-	ax[1].set_xticks(indx_mask)
+	ax[0].set_xlim(datemin,datemax)
 
-	ax[1].set_xticklabels(datel)
+	formatter = mdates.DateFormatter("%H:%M:%S")
+
+	ax[0].xaxis.set_major_formatter(formatter)
+
+	ax[1].plot(axsmer,smr, color='g')
+
+	# ax[1].set_xticks(indx_mask)
+
+	# ax[1].set_xticklabels(datel)
 
 	ax[1].set_xlabel('time (hh:mm:ss)')
 
@@ -421,9 +436,16 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 
 	ax[1].grid()
 
-	ax[0].set_xlim(indx_mask[0],indx_mask[-1])
+	datemin = np.datetime64(index_date.iloc[0])
+	datemax = np.datetime64(index_date.iloc[-1])
 
-	ax[1].set_xlim(indx_mask[0],indx_mask[-1])
+	ax[1].set_xlim(datemin,datemax)
+
+	ax[1].xaxis.set_major_formatter(formatter)
+
+	# ax[0].set_xlim(indx_mask[0],indx_mask[-1])
+
+	# ax[1].set_xlim(indx_mask[0],indx_mask[-1])
 
 
 	# set title label if using cluster code
@@ -444,15 +466,19 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 
 	for i in [0,1,2,3]:
 
+		print('times dir',i ,dict_dn['times'][i], len(dict_dn['times'][i]))
+
+		print('k dir',i ,dict_dn['avg_k'][i], len(dict_dn['avg_k'][i]))
+
 		if plots == 'all':
 
-			xd = [ datetime.datetime.strptime(n2, '%Y-%m-%dT%H:%M:%S') for tup in matrix_dn[0][i] for n1,n2 in tup]
+			xd = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in dict_dn['times'][i] ]
 
-			xn = [ datetime.datetime.strptime(n2, '%Y-%m-%dT%H:%M:%S') for tup in matrix_n[0][i] for n1,n2 in tup]
+			xn = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in dict_n['times'][i] ]
 
-			ax[i+2].scatter(xd, matrix_dn[1][i], color='black', s=6)
+			ax[i+2].scatter(xd, dict_dn['avg_k'][i], color='black', s=6)
 
-			ax[i+2].scatter(xn, matrix_dn[1][i], color='black', s=6)
+			ax[i+2].scatter(xn, dict_dn['avg_k'][i], color='black', s=6)
 
 			ax[i+2].plot(xd, avg_k_dn[i], color='r', label=f'Pc{i+2} directed network', lw=2)
 
@@ -460,20 +486,35 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 
 		elif plots == 'undir':
 
-			xn = [ datetime.datetime.strptime(n2, '%Y-%m-%dT%H:%M:%S') for tup in timenn[i] for n1,n2 in tup]
+			xn = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in dict_n['times'][i] ]
 
-			ax[i+2].scatter(xn, avg_k_n[i], color='black', s=6)
+			ax[i+2].scatter(xn, dict_n['avg_k'][i], color='black', s=6)
 
-			ax[i+2].plot(xn, avg_k_n[i], label= f'Pc{i+2} instantaneously directed network', lw=2)
+			ax[i+2].plot(xn, dict_n['avg_k'][i], label= f'Pc{i+2} instantaneously directed network', lw=2)
+
+			yax2 = ax[i+2].twinx()
+
+			yax2.plot(xn, dict_n['n_nodes'][i], color='green', linestyle='--' )
 
 		elif plots == 'dir':
 
-			xd = [ datetime.datetime.strptime(n2, '%Y-%m-%dT%H:%M:%S') for tup in timedn[i] for n1,n2 in tup]
+			xd = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in dict_dn['times'][i] ]
 
-			ax[i+2].scatter(xd, avg_k_dn[i], color='black', s=6)
+			print('xd',i, len(dict_dn['times'][i]))
 
-			ax[i+2].plot(xd, avg_k_dn[i], color='r', label=f'Pc{i+2} directed network', lw=2)
+			print('avg_k',i, len(dict_dn['avg_k'][i]))
 
+			ax[i+2].scatter(xd, dict_dn['avg_k'][i], color='orange', s=6)
+
+			ax[i+2].plot(xd, dict_dn['avg_k'][i], color='r', label=f'Pc{i+2} directed network', lw=2)
+
+			yax2 = ax[i+2].twinx()
+
+			yax2.plot(xd, dict_dn['n_nodes'][i], color='orange', linestyle='--' )
+
+
+
+		yax2.set_ylabel('num nodes')
 
 		ax[i+2].set_xlabel('time (UTC)')
 
@@ -507,11 +548,11 @@ def plot_k_vs_t(matrix_dn, matrix_n, plots, label=False,):
 			plt.savefig(f'plots/{label}_net_{plots}.png')
 
 
-	plt.show()
+	# plt.show()
 
 
 # load arrays!
-dna, na = load_arrays()
+# dna, na = load_arrays()
 
 for j in ['dir','undir']:
 
@@ -531,23 +572,15 @@ for j in ['dir','undir']:
 
 		# code for cluster plotting ----------------
 
-		save_k_vs_t_cluster(dna, na, i)
+		# dict_dn, dict_n = save_k_vs_t_cluster(dna, na, i)
 
 		# only need two files moving forward
 
-		# avg_deg_dn = np.load(f'networks_data/spd_analysis/avg_deg_{i}_dn.npy',allow_pickle=True, fix_imports=True)
-		# print(avg_deg_dn)
+		dict_dn = np.load(f'networks_data/spd_analysis/avg_deg_results_q_{i}_dn.npy',allow_pickle=True)[()]
 		
-		# avg_deg_n = np.load(f'networks_data/spd_analysis/avg_deg_{i}_n.npy',allow_pickle=True, fix_imports=True)
-		# print(avg_deg_n)
+		dict_n = np.load(f'networks_data/spd_analysis/avg_deg_results_q_{i}_n.npy',allow_pickle=True)[()]
 
-		# time_dn = np.load(f'networks_data/spd_analysis/avg_deg_time_{i}_dn.npy',allow_pickle=True, fix_imports=True)
-		# print(time_dn)
-		
-		# time_nn = np.load(f'networks_data/spd_analysis/avg_deg_time_{i}_n.npy',allow_pickle=True, fix_imports=True)
-		# print(time_nn)
-
-#		plot_k_vs_t(avg_deg_dn, avg_deg_n, time_dn, time_nn, label = i, plots=j)
+		plot_k_vs_t(dict_dn, dict_n, label = i, plots=j)
 
 
 
