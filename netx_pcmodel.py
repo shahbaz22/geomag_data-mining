@@ -423,18 +423,22 @@ def network_append( s1name, s2name, md, comp):
 
         for j, (xcval, lag) in enumerate(zip(min0vals,min0lags)):
 
-            # print(j, xcval, lag, 'j, xcval, lag')
-
             # print(t_inda[j], j, 'tind,j')
 
             # print(utc1.iloc[t_inda[j]],utc2.iloc[t_inda[j]])
 
             # print(mlt1.iloc[t_inda[j]],mlt2.iloc[t_inda[j]])
 
-            def dictt(ind):
+            # both below dictonaries used to assign correct time values to node1 (MLT1) or node two (MLT2)
+            # depending on directionality of the network, s.t MLT1 will always have the time for the node1
+            # MLT2 will always have the correct value for the node2
+
+            def dict_a2b(ind):
                 # function to create dictonary to label network with station names and loop index j
 
                 # utc is the same for both stations however need to check for clusters '2015-03-17T05:18:43' '2015-03-17T05:24:44'
+
+                # strings ending in 1 represent first node and ending in 2 the second node of edge
 
                 d = { 't_window':ind, f'UTC1': utc1.iloc[t_inda[ind]],
 
@@ -443,23 +447,36 @@ def network_append( s1name, s2name, md, comp):
                 f'MLT2': mlt2.iloc[t_inda[ind]] }
 
                 return d
+
+            def dict_b2a(ind):
+                # same as dict_a2b however with reversed time and mlt labels to match directionality of network
+
+                # e.g the first node now had time values from UTC2 and MLT2
+
+                d = { 't_window':ind, f'UTC1': utc2.iloc[t_inda[ind]],
+
+                f'UTC2': utc1.iloc[t_inda[ind]], f'MLT1': mlt2.iloc[t_inda[ind]],
+
+                f'MLT2': mlt1.iloc[t_inda[ind]] }
+
+                return d
             
             if xcval>0 and lag >0:
-                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dict_a2b(j))
 
             elif xcval>0 and lag <0:
-                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dictt(j))
+                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dict_b2a(j))
 
             elif xcval<0 and lag <0:
                 # print(i,'i','cond3','j',j)
-                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dict_a2b(j))
 
             elif xcval<0 and lag>0:
-                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dictt(j))
+                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dict_b2a(j))
 
             # maybe add else: instead of elif lag==0 to speed up code
             elif lag==0:
-                na[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dictt(j))
+                na[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dict_a2b(j))
 
 
     # gives num of windows in network, last value gets updates over
@@ -494,7 +511,8 @@ def network_append( s1name, s2name, md, comp):
     
 
 def network_global(data, comp):
-    '''function to create both a directed and undirected global netowrk from data for componenet comp n,e or z, 
+    '''function to create both a directed and undirected global netowrk from data for componenet comp n,e or z,
+    Geomagnetic coordinates> (magnetic north (n), magnetic east (e) and vertical down (z)) 
     appling the xcor-peak-finding and network appending function, network_append different pairs of stations combinatorially
     for all pairs and returning text files for all directed and undirected netowrks'''
 
@@ -507,22 +525,17 @@ def network_global(data, comp):
     # data set with only station names to be used as a label
     s_labels = md.drop_duplicates(subset=['IAGA'])['IAGA']
 
-    num_stations = len(s_labels)
-
     # checking all stations for incomplete data 4*3600 in the lenght of the data in seconds, keeping only complete data sets
 
-    filt_labs = [(lab, len(md[md['IAGA'] == lab]['Date_UTC'])/(4*3600)) for lab in s_labels]
+    filt_stations = [(lab, len(md[md['IAGA'] == lab]['Date_UTC'])/(4*3600)) for lab in s_labels]
 
-    filt_labs = [n1 for n1,n2 in filt_labs if n2==1]
-
-    s_labels = filt_labs[0:5]
+    filt_stations = [n1 for n1,n2 in filt_stations if n2==1]
 
     # scb lists station pair permutations as Nc2 
 
-    scb = list(itertools.combinations(s_labels,2))
+    scb = list(itertools.combinations(filt_stations,2))
 
-    print(scb,len(scb))
-
+    num_stations = len(filt_stations)
 
     # for loop over permutation pairs to calculate network connections between station pairs and append to network containers
 
@@ -530,37 +543,29 @@ def network_global(data, comp):
 
         # k is the output from the 2 station peak-finding and netowrk appending algo
 
-        print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations')
+        print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations', {comp})
 
         network_append(scb[i][0],scb[i][1],md, comp)
 
+    # saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
+    # k[0] is the num of windows (which can overlap) (timestamps) for each network k[1] is the window size
 
-    # # print list for displaying perm pairs from scb 
-    # # print(list(itertools.chain(scb)))
+    for i in [0,1,2,3]:
 
-    # # print(list(dna[3].stream_interactions()))
+        nx.write_edgelist(dna[i], f'networks_data/dna{i}_{comp}_spd.txt')
 
-
-
-    # # saving network below, plotting displays networks, i is the Pc index of interest 0,1,2,3
-    # # k[0] is the num of windows (which can overlap) (timestamps) for each network k[1] is the window size
-
-    # for i in [0,1,2,3]:
-
-    #     nx.write_edgelist(dna[i], f'networks_data/dna{i}{comp}dyntest.txt')
-
-    #     nx.write_edgelist(na[i], f'networks_data/na{i}{comp}dyntest.txt')
+        nx.write_edgelist(na[i], f'networks_data/na{i}_{comp}_spd.txt')
 
 
 # time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
 
-network_global('20201111-18-30-supermag.csv','e')
+for i in ['z','n']:
+
+    network_global('20201111-18-30-supermag.csv', i)
 
 
 # code to save all cluster networks for given component
 
-# for i in ['dusk','midnight']:#'dawn','noon',
-#     network_cluster('20201111-18-30-supermag.csv','e',cluster=i)
 
 # test code to try labels
 
