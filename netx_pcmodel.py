@@ -166,6 +166,9 @@ def network_append( s1name, s2name, md, comp):
     mlt1 =  md[md['IAGA'] == s1name]['MLT']
     mlt2 =  md[md['IAGA'] == s2name]['MLT']
 
+    mlat1 =  md[md['IAGA'] == s1name]['MAGLAT']
+    mlat2 =  md[md['IAGA'] == s2name]['MAGLAT']
+
 
     s1 = np.array(ts1)
     s2 = np.array(ts2)
@@ -433,6 +436,8 @@ def network_append( s1name, s2name, md, comp):
             # depending on directionality of the network, s.t MLT1 will always have the time for the node1
             # MLT2 will always have the correct value for the node2
 
+            # still useful to have dictonaries attached as it makes filtering easier
+
             def dict_a2b(ind):
                 # function to create dictonary to label network with station names and loop index j
 
@@ -442,9 +447,9 @@ def network_append( s1name, s2name, md, comp):
 
                 d = { 't_window':ind, f'UTC1': utc1.iloc[t_inda[ind]],
 
-                f'UTC2': utc2.iloc[t_inda[ind]], f'MLT1': mlt1.iloc[t_inda[ind]],
+                f'UTC2': utc2.iloc[t_inda[ind]], f'MLT1': mlt1.iloc[t_inda[ind]], f'MLAT1': mlat1.iloc[t_inda[ind]],
 
-                f'MLT2': mlt2.iloc[t_inda[ind]] }
+                f'MLT2': mlt2.iloc[t_inda[ind]], f'MLAT2': mlat2.iloc[t_inda[ind]] }
 
                 return d
 
@@ -455,28 +460,34 @@ def network_append( s1name, s2name, md, comp):
 
                 d = { 't_window':ind, f'UTC1': utc2.iloc[t_inda[ind]],
 
-                f'UTC2': utc1.iloc[t_inda[ind]], f'MLT1': mlt2.iloc[t_inda[ind]],
+                f'UTC2': utc1.iloc[t_inda[ind]], f'MLT1': mlt2.iloc[t_inda[ind]], f'MLAT1': mlat2.iloc[t_inda[ind]],
 
-                f'MLT2': mlt1.iloc[t_inda[ind]] }
+                f'MLT2': mlt1.iloc[t_inda[ind]], f'MLAT2': mlat1.iloc[t_inda[ind]] }
 
                 return d
-            
+
+            def lab(station , ind, coordinate1, coordinate2):
+
+                'label for edges in network used as timestamp j, mlt1, mlat1, eg. station_j_mlt1_mlat1'
+
+                return f'{station}_{ind}_{coordinate1.iloc[t_inda[ind]]}_{coordinate2.iloc[t_inda[ind]]}'
+
+
             if xcval>0 and lag >0:
-                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dict_a2b(j))
+                dna[i].add_edge( lab(s1name,j,mlt1,mlat1) ,lab(s2name, j,mlt2,mlat2) , attr_dict = dict_a2b(j) )
 
             elif xcval>0 and lag <0:
-                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dict_b2a(j))
+                dna[i].add_edge( lab(s2name,j,mlt2,mlat2) ,lab(s1name, j,mlt1,mlat1) , attr_dict = dict_b2a(j) )
 
             elif xcval<0 and lag <0:
-                # print(i,'i','cond3','j',j)
-                dna[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dict_a2b(j))
+                dna[i].add_edge( lab(s1name, j,mlt1,mlat1) ,lab(s2name, j,mlt2,mlat2) , attr_dict = dict_a2b(j) )
 
             elif xcval<0 and lag>0:
-                dna[i].add_edge(f'{s2name}_{j}',f'{s1name}_{j}', attr_dict = dict_b2a(j))
+                dna[i].add_edge( lab(s2name,j,mlt2,mlat2) ,lab(s1name,j,mlt1,mlat1) , attr_dict = dict_b2a(j) )
 
             # maybe add else: instead of elif lag==0 to speed up code
             elif lag==0:
-                na[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = dict_a2b(j))
+                na[i].add_edge( lab(s1name, j,mlt1,mlat1) ,lab(s2name, j,mlt2,mlat2) , attr_dict = dict_a2b(j) )
 
 
     # gives num of windows in network, last value gets updates over
@@ -497,16 +508,15 @@ def network_append( s1name, s2name, md, comp):
 
     # print(len(min0lags),'0lags')
 
-    num_windows.append(len(min0lags))
+    # num_windows.append(len(min0lags))
 
-    window_size_a.append(window_size)
+    # window_size_a.append(window_size)
 
     # # can comment out when running large code, always be the same
 
     # np.save('step_size_arr.npy',step_size_array)
 
-
-    return num_windows , window_size_a
+    # return num_windows , window_size_a
 
     
 
@@ -516,9 +526,13 @@ def network_global(data, comp):
     appling the xcor-peak-finding and network appending function, network_append different pairs of stations combinatorially
     for all pairs and returning text files for all directed and undirected netowrks'''
 
+    # MLT gives the magnetic longitude (E AND W, relative to IGRF model), MGALAT is the magnetic latitude is the (N and S)
+
     md = pd.read_csv(data)
 
     print(md.head())
+
+    print(md.columns.tolist())
 
     print(md.tail())
 
@@ -527,9 +541,11 @@ def network_global(data, comp):
 
     # checking all stations for incomplete data 4*3600 in the lenght of the data in seconds, keeping only complete data sets
 
-    filt_stations = [(lab, len(md[md['IAGA'] == lab]['Date_UTC'])/(4*3600)) for lab in s_labels]
+    filt_stations = [(lab, len( md[md['IAGA'] == lab]['Date_UTC'] ) / (4*3600)) for lab in s_labels]
 
     filt_stations = [n1 for n1,n2 in filt_stations if n2==1]
+
+    print(filt_stations, len(filt_stations))
 
     # scb lists station pair permutations as Nc2 
 
@@ -543,7 +559,7 @@ def network_global(data, comp):
 
         # k is the output from the 2 station peak-finding and netowrk appending algo
 
-        print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations', {comp})
+        print(scb[i][0],scb[i][1],'station pair out of', num_stations,'stations with', i,'out of',len(scb),'operations', comp)
 
         network_append(scb[i][0],scb[i][1],md, comp)
 
@@ -559,7 +575,7 @@ def network_global(data, comp):
 
 # time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
 
-for i in ['z','n']:
+for i in ['n','z']:
 
     network_global('20201111-18-30-supermag.csv', i)
 
