@@ -17,7 +17,7 @@ def utc_sort_reduce(utc_times):
 
 	times_dn = list(set(utc_times))
 
-	times_dn = sorted(times_dn, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'))
+	times_dn = sorted(times_dn, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
 
 	return times_dn
 
@@ -31,46 +31,22 @@ def inter_cluster_pairs(mlta):
 
 	return adjclusts
 
-def ulf_power( networks_filename, ulf_power_filename, times, band ,sec_times):
+def ulf_power(ulf_power_filename, times, band, clusters=False):
 
-	''' function to take the filename of the networks analysis file and time labels then get 
-	top 3 ULF power and store 'MLT and MAGLAT' values for each time stamps
-	compare with the results of the networks file to ensure the timestamps are the same
+	''' function to take the ulf powder dataset and time labels from specific network band and calculate corresponding 
+	top 3 ULF power and store 'MLT and MAGLAT' values for each time stamps and then append that to analysis dictonary'''
 
-	possible to speed up the code if not the same timestamps needed'''
+	# cluster is an an array containing two mlt cluster zones
 
-	# first step ensure only the nodes in the network are being used for comparison with ulf wave power
-	# by finding all stations with complete data from timeseries data set used to create networks 
-	
-	
-	md = pd.read_csv(networks_filename)
+	ulf_powers = pd.read_csv(ulf_power_filename)
 
-	# print(md.head())
-
-	# print(print(md.columns.tolist()))
-
-	s_labels = md.drop_duplicates( subset=['IAGA'] )['IAGA']
-
-	# checking all stations for incomplete data 4*3600 in the lenght of the data in seconds, keeping only complete data sets
-
-	net_stations = [(lab, len( md[md['IAGA'] == lab]['Date_UTC'] ) / (sec_times)) for lab in s_labels]
-
-	net_stations = [n1 for n1,n2 in net_stations if n2==1]
-
-	# print(net_stations,len(net_stations))
-
-	md1 = pd.read_csv(ulf_power_filename)
 
 	# print(md1.head())
 
 	# print(print(md1.columns.tolist()))
 
 	# returns only those rows with the same labels as those in the timeseries data set used to make the networks
-
-	ulf_powers = md1[ md1['IAGA'].isin(net_stations) ]
 	
-	ulf_powers_labels = ulf_powers.drop_duplicates( subset=['IAGA'] )['IAGA']
-
 	dict_ulf ={}
 
 	# highest values ulf power arrays to be recorded
@@ -81,34 +57,25 @@ def ulf_power( networks_filename, ulf_power_filename, times, band ,sec_times):
 
 		dict_ulf[i] = { 'MLT': [], 'MLAT':[], 'pc_power' : [] }
 
+	if clusters:
 
+		mltr = {'dawn':[3,9],'noon':[9,15],'dusk':[15,21],'midnight':[21,3]}
 
-	# code for clusters, set cluster1 and cluster2 as function parameters
+		mlt11 = mltr[clusters[0]][0]
 
+		mlt12 = mltr[clusters[0]][1]
 
-	# mltr = {'dawn':[3,9],'noon':[9,15],'dusk':[15,21],'midnight':[21,3]}
+		mlt21 = mltr[clusters[1]][0]
 
-	# mlt11 = mltr[cluster1][0]
+		mlt22 = mltr[clusters[1]][1]
 
-	# mlt12 = mltr[cluster1][1]
+		# if cluster 1 is equal to cluster two then single mlt zone is obtained
 
-	# mlt21 = mltr[cluster2][0]
+		ulf_filt = ulf_powers.loc[ (ulf_powers['MLT'] >= mlt11) & (ulf_powers['MLT'] < mlt22) ]
 
-	# mlt22 = mltr[cluster2][1]
+	else:
 
-	# # if cluster 1 is equal to cluster two then single mlt zone is obtained
-
-	# ulf_filt = ulf_powers.loc[ (ulf_powers['MLT'] >= mlt11) & (ulf_powers['MLT'] < mlt22) ]
-
-	# print(ulf_filt)
-
-	# print(ulf_filt['MLT'].max(), ulf_filt['MLT'].min())
-
-	# if stamtnet to chose times for directed or undirected network
-
-	# where band is Pc band - 2
-
-	ulf_filt = ulf_powers
+		ulf_filt = ulf_powers
 
 	# print(times,len(times))
 
@@ -117,7 +84,7 @@ def ulf_power( networks_filename, ulf_power_filename, times, band ,sec_times):
 
 		# for given time i, return the ulf values, then pick top three ulf power values, for those top three pick the MLT and MLAT
 
-		# print('iiii',i)
+		# .replace used to unify string format for times
 
 		i = i.replace('T', ' ')
 
@@ -126,15 +93,18 @@ def ulf_power( networks_filename, ulf_power_filename, times, band ,sec_times):
 		
 		# values are 1st 2nd and 3rd
 
+		powers = ['PC2_IPOW', 'PC3_IPOW', 'PC4_IPOW', 'PC5_IPOW']
+
+		
 		for j, lab in enumerate(values):
 
-			# power labels for relevent band
-		
-			powers = ['PC2_IPOW', 'PC3_IPOW', 'PC4_IPOW', 'PC5_IPOW']
+			# power labels for relevent band		
 
-			# number of values in array
+			# oganise by values largest to smallest
 
-			ts = ts.groupby(powers[band]).head()[0:len(values)]
+			# if rows less than 3 then groupby doesn't work properly
+
+			ts = ts.groupby(powers[band]).head(n=4)
 
 			dict_ulf[lab]['MLT'].append(ts['MLT'].iloc[j])
 
@@ -207,40 +177,6 @@ def top3append(reshaped_edge_list, dictt, i):
 
 
 
-def load_arrays(Pcbands, comp):
-	'''function to load text arrays to load 4 directed and 4 undirected networks from label string arrays nlc and dlc (both arrays with four strings) 
-	to create dynamical network objects which can be used for plotting where magp is the cluster to be used and comp the component n,e,z'''
-	
-	nlc = [[],[],[],[]]
-
-	dlc = [[],[],[],[]]
-
-	for i in Pcbands:
-
-		# nlc, dcl array of names of files to read into text arrays to load files
-
-		nlc[i] = f'networks_data/dna{i}_{comp}_spd.txt'
-		
-		dlc[i] = f'networks_data/na{i}_{comp}_spd.txt'
-
-		print(f'loading Pc{i+2} {comp} network')
-
-		# nlc and dlc text array overwritted to contain networks
-
-		# if i == 3 :
-
-		# 	nlc[i] = nx.Graph()
-
-		# else:
-		# 	nlc[i] = nx.read_edgelist(nlc[i])
-
-		nlc[i] = nx.read_edgelist(nlc[i])
-
-		dlc[i] = nx.read_edgelist(dlc[i],create_using=nx.DiGraph)
-
-	return dlc ,nlc
-
-
 # G = nlc[1]
 
 # print(G.edges(['A08']))
@@ -283,13 +219,15 @@ def load_arrays(Pcbands, comp):
 
 # print(degrees, 'avg_degree', degrees/len(G.nodes()))
 
-def save_k_vs_t_global(dn, nn, save_label, comp, pcbands):
+def save_k_vs_t_global(dn, nn, save_label, comp, pcbands, ulf_filename):
 	
 	''' function to calculate number of connections (k) globally at each time window
 	in for all network arrays in dnn and nn to and returns file of k vs t to later use
 	and speed up plotting of related graphs'''
 
 	# arrays used for plotting gaphs see cluster function for details
+
+	# magd anf ulf files are magnetometer and 
 
 	dict_dn = {}
 
@@ -352,10 +290,9 @@ def save_k_vs_t_global(dn, nn, save_label, comp, pcbands):
 
 		# loop for slicing consecutive time stamps and calculating degree for directed network
 
-		print(f'pc{i+2}, dir global {comp}')
+		for ind, j in enumerate(time_stamps_dn):
 
-
-		for j in time_stamps_dn:
+			print(f'pc{i+2}, dir global {comp}, {ind} out of {len(time_stamps_dn)}')
 
 			ts_edge_list = [ [n1,n2] for n1,n2,d in dn[i].edges(data=True) if d['attr_dict']['t_window'] == j ]
 
@@ -377,12 +314,19 @@ def save_k_vs_t_global(dn, nn, save_label, comp, pcbands):
 
 			top3append(reshaped_edge_list, dict_dn, i)
 
+		print(f'Pc {i+2} corresponding ulf power dir ')
+
+		# ulf params appended analysis dict by creating new dict key
+
+		dict_dn[f'ulf_pc_{i+2}'] = ulf_power(ulf_filename, times = times_dn, band = i)
 
 		# loop for slicing consecutive time stamps and calculating degree for undirected network
 
 		print(f'pc{i+2}, undir global, {comp}')
 			
-		for j in time_stamps_nn:
+		for ind, j in enumerate(time_stamps_dn):
+
+			print(f'pc{i+2}, dir global {comp}, {ind} out of {len(time_stamps_dn)}')
 
 			ts_edge_list = [ [n1,n2] for n1,n2,d in nn[i].edges(data=True) if d['attr_dict']['t_window'] == j ]
 
@@ -404,6 +348,14 @@ def save_k_vs_t_global(dn, nn, save_label, comp, pcbands):
 
 			top3append(reshaped_edge_list, dict_n, i)
 
+		print(f'Pc {i+2} corresponding ulf power undir ')
+
+		# ulf params appended analysis dict by creating new dict key
+
+		dict_dn[f'ulf_pc_{i+2}'] = ulf_power(ulf_filename, times = times_n, band = i)
+
+	# print('dn keys',dict_dn.keys())
+	# print('n keys',dict_n.keys())
 
 	np.save(f'{save_label}_dn.npy', dict_dn)
 	np.save(f'{save_label}_n.npy', dict_n)			
@@ -884,26 +836,32 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 		print('relevent pc bands, Pc',  [x+2 for x in non_empty_pcbands] )
 
-		ref_plots = 6
+		# non network plots include SME/SMR, B feilds, SP, ULF power, (in this case more ulf band powers)
 
-		num_plots = ref_plots + len(non_empty_pcbands)
+		ref_plots = 3
 
-		fig, ax = plt.subplots(nrows = num_plots, figsize=(9, 17), facecolor='w', edgecolor='k')
-		fig.subplots_adjust(hspace=0.9)
+		num_plots = ref_plots + 2*len(non_empty_pcbands)
+
+		fig = plt.figure(figsize=(20, 17)) #__________________________________________________________________________________________________
+
+		gs = fig.add_gridspec(num_plots, hspace=0)
+		ax = gs.subplots(sharex=True, sharey=False)
 
 		md = pd.read_csv('SME_SMR_spd.csv')
 
 		md2 = pd.read_csv('spd_Bzgsm_p.csv')
 
-		# print(md.head())
+		md3 = pd.read_csv('all_2015_smr.csv')
+
+		print(md3.head())
+
+		print(md3.tail())
 
 		index_date = md['Date_UTC']
 
 		index_date2 = md2['Date_UTC']
 
 		sme = md['SME']
-
-		smr = md['SMR']
 
 		print('start_time, end_time',index_date.iloc[0],index_date.iloc[-1])
 
@@ -930,7 +888,13 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 		ax2 = ax[0].twinx()
 
-		ax2.plot(axsmer,smr, color='g', label= 'SMR')
+		# code for plotting SMR sections for entire SMR yearly dataset
+
+		md3['Date_UTC'] = pd.to_datetime(md3['Date_UTC']) 
+
+		for i in ['SMR00','SMR06','SMR12','SMR18' ]:
+
+			ax2.plot(axsmer,md3[(md3['Date_UTC'] >= datemin) & (md3['Date_UTC'] <= datemax)][i] , label= i)
 
 		ax2.xaxis.set_major_formatter(formatter)
 
@@ -1044,7 +1008,7 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 		# -------------------------------------------------------------
 
-		if plots == 'dirr':
+		if plots == 'dir':
 
 			print('dir graphs:', plots)
 
@@ -1052,20 +1016,25 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 			tk1 = dict_dn[f'{dtimeskey1}']
 
+			dict_all = dict_dn
+
 		else:
 
-			print('dir graphs:', plots)
+			print('undir graphs:', plots)
 
 			dictt = dict_n[f'{uykey1}']
 
 			tk1 = dict_n[f'{utimeskey1}']
+
+			dict_all = dict_n
+
 
 		# -------------------------------------------------------------
 
 
 		for ind, num in enumerate(non_empty_pcbands):
 
-			n = num_plots - 4
+			n = num_plots - 2*len(non_empty_pcbands)
 
 			xd = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in np.squeeze( tk1[num] ) ]
 
@@ -1077,13 +1046,13 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 			# second yaxis-----------
 
-			print('times',len(xd),xd)
+			# print('times',len(xd),xd)
 
 			for order in ['1st','2nd','3rd']:
 
-				print('connections',len(dictt[order]['e_num'][num]),dictt[order]['e_num'][num])
+				# print('connections',len(dictt[order]['e_num'][num]),dictt[order]['e_num'][num])
 
-				axs2.scatter(xd, dictt[order]['e_num'][num], s=7, label= f'Pc{num+2} {order} most # connections')
+				axs2.scatter(xd, dictt[order]['e_num'][num], s=7, label= f'Pc{num+2} {order} \n # connections')
 
 			# y2range = range(int(np.min(dictt['3rd']['e_num'][num])), int(np.max(dictt['1st']['e_num'][num])),2)
 
@@ -1097,8 +1066,7 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 			# yax2.legend(bbox_to_anchor=(0.8,1.02,0.2,0.2), loc="lower right", borderaxespad=0, ncol=1)
 
-			axs2.legend(bbox_to_anchor=(0,1.02,1,0.2),loc="lower left",
-			            mode="expand", borderaxespad=0, ncol=4)
+			axs2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='x-small', ncol=1)
 
 			axs2.grid()
 
@@ -1131,7 +1099,8 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 		# direction, c1, c2 = label.split('_')
 
-		for ind, num in enumerate([num_plots-2, num_plots-1, 3]):
+
+		for ind, num in enumerate([num_plots-2, num_plots-1, num_plots-3]):
 
 			# axes index stats from 0 to n-1
 
@@ -1158,14 +1127,11 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 					ylab = 'log(nT^2)'
 
 
-				print('calculating coresponding highest ulf powers for Pc band', {k+2}, ylab)
-
-				ulf = ulf_power('20201111-18-30-supermag.csv', 'networks_data/spd_ulfpower.csv', times = tk1[k], 
-				band = k, sec_times = 4*3600)
-
-				print('ulf power completed')
-					
+				ulf = dict_all[f'ulf_pc_{k+2}']
+		
 				xn = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in np.squeeze(tk1[k]) ]
+
+				labels = []
 
 				# if statments to perform correct operation for each plot
 
@@ -1173,21 +1139,24 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 					for m in ['1st','2nd','3rd']:
 
-						print(label, m, 'xions', ylab, min(y1(m)), max(y1(m)))
-
-						print(label, m, 'ulf', ylab, min(ulf[m][ylab]), max(ulf[m][ylab]))
 
 						ax[num].scatter(xn, y1(m), s=7, label= f'Pc{k+2}, {m}, x', marker = point_style[indpc])
 
 						ax[num].scatter(xn, ulf[m][ylab] , s=7, label= f'Pc{k+2}, {m}, power', marker = point_style[indpc])
 
+						labels.append(f'Pc{k+2}, {m}, x')
 
+						labels.append(f'Pc{k+2}, {m}, power')
+
+				# statment for speterate plot
 
 				else:
 					
 					for m in ['1st','2nd','3rd']:
 						
 						ax[num].scatter(xn, ulf[m]['pc_power'] , s=7, label= f'Pc{k+2}, {m}, power', marker = point_style[indpc])
+
+						labels.append(f'Pc{k+2}, {m}, power')
 
 
 			# print('minmax',maxmin_vals)
@@ -1200,9 +1169,18 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 			ax[num].xaxis.set_major_formatter(formatter)
 
+			l1, l2 = np.array_split(labels,2)
 
-			ax[num].legend(bbox_to_anchor=(0,1.02,1,0.2),loc="lower left",
-			            mode="expand", borderaxespad=0, ncol=6)
+			# colours automatically aligned between subplots can check
+
+			if ind==1:
+
+				ax[num].legend(loc='upper center', bbox_to_anchor=(0.5, -0.50), ncol=12, fontsize='small',title='MLAT and MLT')
+
+			elif ind == 2:
+
+				ax[num].legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1, title='Pc power')
+
 
 			ax[num].grid()	
 
@@ -1216,7 +1194,7 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 				# saves the plot
 
-				plt.savefig(f'plots/{dykey1}_{label}_net_{comp}3.png')
+				plt.savefig(f'plots/{dykey1}_{label}_net_{comp}.png')
 
 
 		plt.show()
@@ -1241,24 +1219,45 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 	mltz = ['dawn','noon','dusk','midnight']
 
+	# handel for labeling anlysis files for each event
+
+	handel = '170313'
 
 	if save_k:
 
-		# # load network arrays!
+		# # load network arrays for analysis
 
-		dna, na = load_arrays(Pcband, comp)
+		'''load text arrays to 4 directed and 4 undirected networks from label string arrays nlc and dlc (both arrays with four strings) 
+		to create dynamical network objects which can be used for plotting where magp is the cluster to be used and comp the component n,e,z'''
+		
+		na = [[],[],[],[]]
 
-	# loop over network arrays
+		dna = [[],[],[],[]]
+
+		for i in Pcband:
+
+			# nlc, dcl array of names of files to read into text arrays to load files
+
+			na[i] = f'networks_data/dna{i}_{comp}_{handel}.txt'
+			
+			dna[i] = f'networks_data/na{i}_{comp}_{handel}.txt'
+
+			print(f'loading Pc{i+2} {comp} network {handel}')
+
+			na[i] = nx.read_edgelist(na[i])
+
+			dna[i] = nx.read_edgelist(dna[i],create_using=nx.DiGraph)
+
 
 	if option == 'global':
 
-		file_label = f'networks_data/spd_analysis/avg_deg_global_{comp}'
+		file_label = f'networks_data/spd_analysis/avg_deg_global_{comp}_{handel}'
 		
 		if save_k:
 
 			if option == 'global':
 
-				save_k_vs_t_global(dna, na, file_label, comp, Pcband)
+				save_k_vs_t_global(dna, na, file_label, comp, Pcband, 'networks_data/17march2013_4am.csv')
 
 		elif plot:
 
@@ -1268,7 +1267,7 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 			for j in nettype:
 
-				plot_label = f'global_{comp}_{j}'
+				plot_label = f'global_{comp}_{j}_{handel}'
 
 				plot_k_vs_t(dict_dn, dict_n, Pcband, comp, 'avg_k', 'n_nodes','times', 'avg_k', 
 				'n_nodes','times', label = plot_label, plots= j, save_plot=save_plot)
@@ -1278,11 +1277,11 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 		for i, val in enumerate(mltz):
 
-			# labels for incluster savefiles and plots
+			# labels for for saving incluster savefiles and plots
 
 			if option == 'global':
 
-				file_label = f'networks_data/spd_analysis/avg_deg_global_{comp}'
+				file_label = f'networks_data/{handel}_analysis/avg_deg_global_{comp}'
 
 			elif option == 'intercluster':
 
@@ -1291,11 +1290,11 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 				adjclusts = inter_cluster_pairs(mltz)
 
 				# file label with file path, file 
-				file_label = f'networks_data/spd_analysis/avg_deg_{adjclusts[i][0]}_{adjclusts[i][1]}_{comp}'
+				file_label = f'networks_data/{handel}_analysis/avg_deg_{adjclusts[i][0]}_{adjclusts[i][1]}_{comp}'
 
 			elif option == 'cluster':
 
-				file_label = f'networks_data/spd_analysis/avg_deg_{val}_{comp}'
+				file_label = f'networks_data/{handel}_analysis/avg_deg_{val}_{comp}'
 
 
 			# run and save dictonaries for plotting by filtering dynamical network array file
@@ -1330,6 +1329,8 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 						plot_label = '_'.join( [j, mltz[i]] )
 
+						plot_label = f'{plot_label}_{handel}'
+
 						plot_k_vs_t(dict_dn, dict_n, Pcband, comp, 'avg_k', 'n_nodes', 'times', 'avg_k', 
 						'n_nodes','times',  label = plot_label, plots= j, save_plot=save_plot)
 
@@ -1352,6 +1353,8 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 						plot_label = '_'.join( [ j, adjclusts[i][0], adjclusts[i][1] ] )
 
+						plot_label = f'{plot_label}_{handel}'
+
 						plot_k_vs_t(dict_dn, dict_n, Pcband, comp, 'avg_k', 'n_nodes', 'times', 'avg_k', 
 						'n_nodes','times', label = plot_label, plots= j, save_plot=save_plot)
 
@@ -1364,27 +1367,23 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 # after plot all other options are related to plottin
 
-# for i in ['e','z','n']:
+# analysis file ------------------------------------------------------------------------
 
-#     save_plot_all_clusters(save_k = True, comp = i, Pcband = [0,1,2,3], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
+for i in ['e','z','n']:
 
-#     print('done', i)
+    save_plot_all_clusters(save_k = True, comp = i, Pcband = [0,1,2,3], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
 
+    print('done', i)
 
+# test---------------------------------------------------------------
 # save_plot_all_clusters(save_k = True, comp = 'e', Pcband = [1], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
 
 
-save_plot_all_clusters(save_k = False, comp = 'e', Pcband = [0,1,2,3], option = 'global', plot=True,  save_plot = False	
-	, nettype = ['undir','dir'])
+# plotting -----------------------------------------
+# for i in ['e','z','n']:
 
-
-
-
-
-
-
-
-
+# 	save_plot_all_clusters(save_k = False, comp = i, Pcband = [0,1,2,3], option = 'global', plot=True,  save_plot = True
+# 		, nettype = ['undir','dir'])
 
 
 # nx.draw(G)
@@ -1398,6 +1397,8 @@ save_plot_all_clusters(save_k = False, comp = 'e', Pcband = [0,1,2,3], option = 
 
 
 # test_ulf('networks_data/spd_analysis/avg_deg_noon_e', dirr=True)
+
+# node_labels = [b[0] for b in [a.split('_') for a in nodes]]
 
 
 
