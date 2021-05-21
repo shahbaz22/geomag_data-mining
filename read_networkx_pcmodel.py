@@ -11,13 +11,15 @@ import datetime
 import matplotlib.dates as mdates
 import pdb
 
-def utc_sort_reduce(utc_times):
+def utc_sort_reduce(utc_times, deliminator=' '):
 
 	# takes an unordered list of utc times and removes repeated values and then orders based on tme value
 
 	times_dn = list(set(utc_times))
 
-	times_dn = sorted(times_dn, key = lambda x: datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S'))
+	times_dn = sorted(times_dn, key = lambda x: datetime.datetime.strptime(x, f'%Y-%m-%d{deliminator}%H:%M:%S'))
+
+	times_dn = [ datetime.datetime.strptime(x, f'%Y-%m-%d{deliminator}%H:%M:%S') for x in np.squeeze(times_dn) ]
 
 	return times_dn
 
@@ -39,6 +41,8 @@ def ulf_power(ulf_power_filename, times, band, clusters=False):
 	# cluster is an an array containing two mlt cluster zones
 
 	ulf_powers = pd.read_csv(ulf_power_filename)
+
+	ulf_powers['Date_UTC'] = pd.to_datetime(ulf_powers['Date_UTC'])
 
 
 	# print(md1.head())
@@ -86,8 +90,7 @@ def ulf_power(ulf_power_filename, times, band, clusters=False):
 
 		# .replace used to unify string format for times
 
-		i = i.replace('T', ' ')
-
+		# i = i.replace('T', ' ')
 
 		ts = ulf_filt[ulf_filt['Date_UTC'] == i][[ 'Date_UTC', 'IAGA', 'MAGLAT', 'MLT', 'PC2_IPOW', 'PC3_IPOW', 'PC4_IPOW', 'PC5_IPOW']] 
 		
@@ -175,7 +178,29 @@ def top3append(reshaped_edge_list, dictt, i):
 		dictt['avg_k']['3rd']['e_num'][i].append(0)
 
 
+def load_arrays(Pcbands, comp, handel):
+	'''function to load text arrays to load 4 directed and 4 undirected networks from label string arrays nlc and dlc (both arrays with four strings) 
+	to create dynamical network objects which can be used for plotting where magp is the cluster to be used and comp the component n,e,z'''
+	
+	nlc = [[],[],[],[]]
 
+	dlc = [[],[],[],[]]
+
+	for i in Pcbands:
+
+		# nlc, dcl array of names of files to read into text arrays to load files
+
+		nlc[i] = f'networks_data/dna{i}_{comp}_{handel}.txt'
+		
+		dlc[i] = f'networks_data/na{i}_{comp}_{handel}.txt'
+
+		print(f'loading Pc{i+2} {comp}, {handel} network')
+
+		nlc[i] = nx.read_edgelist(nlc[i])
+
+		dlc[i] = nx.read_edgelist(dlc[i],create_using=nx.DiGraph)
+
+	return dlc ,nlc
 
 # G = nlc[1]
 
@@ -296,6 +321,8 @@ def save_k_vs_t_global(dn, nn, save_label, comp, pcbands, ulf_filename):
 
 			ts_edge_list = [ [n1,n2] for n1,n2,d in dn[i].edges(data=True) if d['attr_dict']['t_window'] == j ]
 
+			print(times_dn[ind], ts_edge_list)
+
 			# count all edges in network at specific time (t_slice_node_list) divided by all unique nodes present, dont use g.degree
 			
 			# take a unique list of nodes in given time window
@@ -324,11 +351,13 @@ def save_k_vs_t_global(dn, nn, save_label, comp, pcbands, ulf_filename):
 
 		print(f'pc{i+2}, undir global, {comp}')
 			
-		for ind, j in enumerate(time_stamps_dn):
+		for ind, j in enumerate(time_stamps_nn):
 
-			print(f'pc{i+2}, dir global {comp}, {ind} out of {len(time_stamps_dn)}')
+			print(f'pc{i+2}, undir global {comp}, {ind} out of {len(time_stamps_nn)}')
 
 			ts_edge_list = [ [n1,n2] for n1,n2,d in nn[i].edges(data=True) if d['attr_dict']['t_window'] == j ]
+
+			print(times_n[ind], ts_edge_list)
 
 			# count all edges in network at specific time (t_slice_node_list) divided by all unique nodes present, dont use g.degree
 			
@@ -357,8 +386,8 @@ def save_k_vs_t_global(dn, nn, save_label, comp, pcbands, ulf_filename):
 	# print('dn keys',dict_dn.keys())
 	# print('n keys',dict_n.keys())
 
-	np.save(f'{save_label}_dn.npy', dict_dn)
-	np.save(f'{save_label}_n.npy', dict_n)			
+	# np.save(f'{save_label}_dn.npy', dict_dn)
+	# np.save(f'{save_label}_n.npy', dict_n)			
 
 
 def save_k_vs_t_cluster(dn, nn, cluster, save_label):
@@ -1036,7 +1065,9 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 			n = num_plots - 2*len(non_empty_pcbands)
 
-			xd = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in np.squeeze( tk1[num] ) ]
+			# xd = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in np.squeeze( tk1[num] ) ]
+
+			xd = tk1[num] 
 
 			# print(plots, len(xd), xd, len(dictt[f'{uykey1}'][num]), dictt[f'{utimeskey1}'][num])
 	
@@ -1129,7 +1160,10 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 
 				ulf = dict_all[f'ulf_pc_{k+2}']
 		
-				xn = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in np.squeeze(tk1[k]) ]
+				# xn = [ datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in np.squeeze(tk1[k]) ]
+
+				xn = tk1[k]
+
 
 				labels = []
 
@@ -1200,7 +1234,89 @@ def plot_k_vs_t(dict_dn, dict_n, Pcbands, comp, dykey1, dykey2, dtimeskey1, uyke
 		plt.show()
 
 
+def plot_tslice_dist(pcbands, relevent_times, comp):
+	'''function to create degree distrobutions for an arbitrary number of plots at given times from network code'''
 
+	# need to find way of picking relevent UTC times as close to each other as possible
+
+	# take ordered UTC array data from of all bands and find closest value for both for given value of interest.
+
+	# relevent_times is an array in format HH/MM/SS
+
+	handel = '170313'
+
+	dn, nn = load_arrays(pcbands, comp, handel)
+
+	# day date as string in format YYYY-MM-DD
+
+	# reformating times into datetime for comutiation, make sure correct delimiter used for times
+
+	day_date = '2013-03-17'
+
+	relevent_times = [f'{day_date} {x}' for x in relevent_times]
+
+	relevent_times = [ datetime.datetime.strptime(x, f'%Y-%m-%d %H:%M:%S') for x in np.squeeze(relevent_times) ]
+
+	print(relevent_times)
+
+
+	for i in pcbands:
+
+		utc_times_dn = [ d['attr_dict']['UTC2'] for n1,n2,d in dn[i].edges(data=True) ]
+
+		# removing duplicates and sorting in utc_times_dn
+		
+		times_dn = utc_sort_reduce(utc_times_dn)
+
+		utc_times_n = [ d['attr_dict']['UTC2'] for n1,n2,d in nn[i].edges(data=True) ]
+
+		times_n = utc_sort_reduce(utc_times_n)
+
+		for j in relevent_times:
+
+			# time selection which minimises the timedelta between the chosen time and times presnet in our analysis array
+
+			dir_close_t = min(times_dn, key=lambda d: abs(d - j))
+
+			# changing format back to string for comparison with network attribute
+
+			dir_close_t = dir_close_t.strftime( '%Y-%m-%d %H:%M:%S')
+
+			undir_close_t =  min(times_n, key=lambda d: abs(d - j))
+
+			undir_close_t = undir_close_t.strftime( '%Y-%m-%d %H:%M:%S')
+
+			print(f'Pc{i+2} time and target time, dir and undir ', j, dir_close_t, undir_close_t)
+
+			dir_edgelist = [ [n1,n2] for n1,n2,d in dn[i].edges(data=True) if d['attr_dict']['UTC1'] == dir_close_t ]
+
+			undir_edgelist = [ [n1,n2] for n1,n2,d in nn[i].edges(data=True) if d['attr_dict']['UTC1'] == undir_close_t ]
+
+			dir_reshaped_edgelist = np.reshape(dir_edgelist, len(dir_edgelist)*2)
+
+			undir_reshaped_edgelist = np.reshape(undir_edgelist, len(undir_edgelist)*2)			
+
+			nodes = list(set(dir_reshaped_edgelist))
+
+			# counts how many time a node name repeated in edgelist, i.e how many connections it has
+
+			counts_dir = Counter(list(dir_reshaped_edgelist)).most_common()
+
+			freq_dir1 = [v2 for v1,v2 in [v for v in counts_dir]]
+
+			freq_dir2 = Counter(freq_dir1).most_common()
+
+			counts_undir = Counter(list(dir_reshaped_edgelist)).most_common()
+
+			print(counts_dir)
+
+			print(freq_dir1)
+			print(freq_dir2)
+
+
+			# have found way of selecting times
+
+plot_tslice_dist([1], ['04:00:00','05:00:00','06:00:00','07:00:00'], 'e')
 
 # # code for saving cluster and intercluster analysis file
 
@@ -1227,26 +1343,7 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 		# # load network arrays for analysis
 
-		'''load text arrays to 4 directed and 4 undirected networks from label string arrays nlc and dlc (both arrays with four strings) 
-		to create dynamical network objects which can be used for plotting where magp is the cluster to be used and comp the component n,e,z'''
-		
-		na = [[],[],[],[]]
-
-		dna = [[],[],[],[]]
-
-		for i in Pcband:
-
-			# nlc, dcl array of names of files to read into text arrays to load files
-
-			na[i] = f'networks_data/dna{i}_{comp}_{handel}.txt'
-			
-			dna[i] = f'networks_data/na{i}_{comp}_{handel}.txt'
-
-			print(f'loading Pc{i+2} {comp} network {handel}')
-
-			na[i] = nx.read_edgelist(na[i])
-
-			dna[i] = nx.read_edgelist(dna[i],create_using=nx.DiGraph)
+		dna, na = load_arrays(Pcband, comp, handel)
 
 
 	if option == 'global':
@@ -1369,14 +1466,14 @@ def save_plot_all_clusters(save_k, comp , Pcband, option, plot, save_plot, netty
 
 # analysis file ------------------------------------------------------------------------
 
-for i in ['e','z','n']:
+# for i in ['e','z','n']:
 
-    save_plot_all_clusters(save_k = True, comp = i, Pcband = [0,1,2,3], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
+#     save_plot_all_clusters(save_k = True, comp = i, Pcband = [0,1,2,3], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
 
-    print('done', i)
+#     print('done', i)
 
 # test---------------------------------------------------------------
-# save_plot_all_clusters(save_k = True, comp = 'e', Pcband = [1], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
+# save_plot_all_clusters(save_k = True, comp = 'e', Pcband = [2], option = 'global', plot=False,  save_plot = False, nettype = ['dir','undir'])
 
 
 # plotting -----------------------------------------
