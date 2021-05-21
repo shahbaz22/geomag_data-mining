@@ -1302,9 +1302,9 @@ def plot_tslice_dist(pcbands, relevent_times, comp):
 
 			counts_dir = Counter(list(dir_reshaped_edgelist)).most_common()
 
-			freq_dir1 = [v2 for v1,v2 in [v for v in counts_dir]]
+			degrees_list_dir = [v2 for v1,v2 in [v for v in counts_dir]]
 
-			freq_dir2 = Counter(freq_dir1).most_common()
+			freq_dir2 = Counter(degrees_list_dir).most_common()
 
 			counts_undir = Counter(list(dir_reshaped_edgelist)).most_common()
 
