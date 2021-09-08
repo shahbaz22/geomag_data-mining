@@ -64,9 +64,9 @@ class DrawNetwork:
 
         available_stations = self.station_data[self.station_data.index.isin(stations)]
 
-        print('target_time',target_time)
-        print('closest_time',closest_time)
-        print(t_edge_list)
+        # print('target_time',target_time)
+        # print('closest_time',closest_time)
+        # print(t_edge_list)
 
         # llcrnrlat,llcrnrlon,urcrnrlat,urcrnrlon
         # are the lat/lon values of the lower left and upper right corners
@@ -75,32 +75,73 @@ class DrawNetwork:
         # resolution = 'c' means use crude resolution coastlines.
         # m = Basemap(projection='merc' ,llcrnrlat=-85, urcrnrlat=85,
         #             llcrnrlon=-180, urcrnrlon=180, resolution='c')
+
+        # maybe do a global network and a section of small pannels showing greater detail.
+
+        fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(15,15))
+
         lon_0 = -105; lat_0 = 40
-        m = Basemap(projection='aeqd',lat_0=lat_0,lon_0=lon_0)
+        m1 = Basemap(ax = ax[0,0], projection='aeqd', lat_0=lat_0, lon_0=lon_0)
         # fill background.
-        m.drawmapboundary(fill_color='aqua')
+        m1.drawmapboundary(fill_color='aqua')
         # draw coasts and fill continents.
-        m.drawcoastlines(linewidth=0.5)
+        m1.drawcoastlines(linewidth=0.5)
         # m.fillcontinents(color='coral',lake_color='aqua')
         # 20 degree graticule.
-        m.drawparallels(np.arange(-80,81,20))
-        m.drawmeridians(np.arange(-180,180,20))
+        m1.drawparallels(np.arange(-80,81,20))
+        m1.drawmeridians(np.arange(-180,180,20))
+        m1.drawcountries(linewidth = 1)
+        m1.drawcoastlines(linewidth = 1)
 
-        mx, my = m(available_stations['GEOLON'].values, available_stations['GEOLAT'].values)
-        pos = {}        
-        for ind, station in enumerate(available_stations.index):
-            pos[station] = (mx[ind], my[ind])
-        freqs = [0.01*counts[station]**2.8 for station in G.nodes()]
-        print(counts)
-        print(G.nodes())
-        print(freqs)
-        nx.draw_networkx_nodes(G = G, pos = pos, node_list = G.nodes(), 
-        node_color = 'r', alpha = 0.8, node_size = freqs)
-        nx.draw_networkx_edges(G = G, pos = pos, edge_color='g',
-        alpha=1, arrows = self.directed)
-        m.drawcountries(linewidth = 3)
-        m.drawcoastlines(linewidth = 3)
-        plt.tight_layout()
+        m2 = Basemap(ax = ax[0,1],width=15.e6,height=15.e6,
+            projection='gnom',lat_0=60,lon_0=-30)
+        m2.drawmapboundary(fill_color='aqua')
+        m2.drawcoastlines()
+        # m.fillcontinents(color='coral',lake_color='aqua')
+        m2.drawparallels(np.arange(10,90,20))
+        m2.drawmeridians(np.arange(-180,180,30))
+        m2.drawcountries(linewidth = 1)
+
+
+        m3 = Basemap(ax = ax[1,0],width=15.e6,height=15.e6,
+            projection='gnom',lat_0=-40.,lon_0=130)
+        m3.drawcoastlines()
+        m3.drawmapboundary(fill_color='aqua')
+        # m.fillcontinents(color='coral',lake_color='aqua')
+        m3.drawparallels(np.arange(10,90,20))
+        m3.drawmeridians(np.arange(-180,180,30))
+        m3.drawcountries(linewidth = 1)
+
+
+        m4 = Basemap(ax = ax[1,1],width=15.e6,height=15.e6,
+            projection='gnom',lat_0=60,lon_0=120)
+        m4.drawcoastlines()
+        m4.drawmapboundary(fill_color='aqua')
+        # m.fillcontinents(color='coral',lake_color='aqua')
+        m4.drawparallels(np.arange(10,90,20))
+        m4.drawmeridians(np.arange(-180,180,30))
+        m4.drawcountries(linewidth = 1)
+
+
+        for ind1, ax in enumerate(ax.flat):
+            m = [m1,m2,m3,m4]
+            mx, my = m[ind1](available_stations['GEOLON'].values, available_stations['GEOLAT'].values)
+            pos = {}
+            print(ind1, ax)        
+            for ind2, station in enumerate(available_stations.index):
+                pos[station] = (mx[ind2], my[ind2])
+            if ind1 ==0:
+                freqs = [(1/600)*counts[station]**2.8 for station in G.nodes()]
+            else:
+                freqs = [0.01*counts[station]**2.8 for station in G.nodes()]
+            nx.draw_networkx_nodes(G = G, pos = pos, node_list = G.nodes(), 
+            node_color = 'r', alpha = 0.8, node_size = freqs, ax = ax)
+            nx.draw_networkx_edges(G = G, pos = pos, edge_color='g',
+            alpha=1, arrows = self.directed, ax = ax)
+
+        fig.suptitle(f'Pc2, Network snapshot at time {closest_time}')
+        plt.savefig('und_net_pc2_snapshot.png')
+
         plt.show()
 
 
