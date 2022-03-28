@@ -9,12 +9,14 @@ from PyAstronomy import pyaC # for zero crossing intrapolation
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools
-from collections import Counter
 from datetime import datetime
 from os import listdir
 from os.path import isfile, join
 from scipy import io
-import time 
+import time
+from tqdm import tqdm
+import os
+
 
 def butter_bandpass(lowcut:float, highcut:float, fs:int, order:int)-> list:
     #function to plot butterworth bandpass filter coefficents
@@ -165,11 +167,12 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
     # band-pass parameters 
     fs = 1
     order = 3
+    delta = 1
     #Pc wave period ranges and labels
     label = ['Pc2','Pc3','Pc4','Pc5']
     pc_period = [5,10,45,150,600]
     # custom window sizes for each band using the lower limit for each pc band period range
-    window_size_a = np.multiply(pc_period[0:-1], window_mod)
+    window_size_a = np.multiply(np.diff(pc_period), window_mod)
     #custom step_size for different Pc bands multiplied by amount of window overlap // ensures whole number eg. *3//4 means 25% overlap
     step_size_a = np.zeros(len(window_size_a))
     step_size_a[0:2] = (window_size_a[0:2] * 1) // 2
@@ -184,7 +187,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
         t_end = t_start + window_size_a[i]
         t_mid = t_end//2
         step_size = step_size_a[i]
-        counter = 0
         lag_of_extr_close_0_arr = []
         xc_of_extr_close_0_arr = []
         pc_power1 = []
@@ -202,27 +204,18 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
             if consec_counts11>pc_period[i]//4 or consec_counts21>pc_period[i]//4:
                 t_start = t_start + step_size                
                 t_end = t_end + step_size
-                t_mid = t_mid +step_size
-                counter = +1
+                t_mid = t_mid + step_size
                 t_mid_arr.append(t_mid)
+                # needed to keep timing of j indices
+                lag_of_extr_close_0_arr.append(np.nan)
+                xc_of_extr_close_0_arr.append(np.nan)
                 pc_power1.append(0)
                 pc_power2.append(0)
-                continue
+                continue 
             if counts11>0:
                  y11 = linear_interp(y11, anom_val=gapfinder)
             if counts21>0:
                 y21 = linear_interp(y21, anom_val=gapfinder)
-
-            # if gapfinder in y11 or gapfinder in y21:
-            #     t_start = t_start + step_size                
-            #     t_end = t_end + step_size
-            #     t_mid = t_mid +step_size
-            #     counter = +1
-            #     t_mid_arr.append(t_mid)
-            #     pc_power1.append(0)
-            #     pc_power2.append(0)
-            #     continue
-
 
             y11 = butter_bandpass_filter(y11, 1/(pc_period[i+1]), 1/pc_period[i], fs, order=order)
             y21 = butter_bandpass_filter(y21, 1/(pc_period[i+1]), 1/pc_period[i], fs, order=order)
@@ -237,7 +230,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
             peaks = c0peaks(tlxcor,lags0, cutoffh)
             troughs = c0peaks(-tlxcor,lags0, cutoffh)
 
-
             if (troughs == 'noise' and peaks =='noise') or (np.max(abs(y11))<0.1 or np.max(abs(y21))<0.1) :
                 
                 lag_of_extr_close_0_arr.append(np.nan)
@@ -246,7 +238,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                 t_start = t_start + step_size                
                 t_end = t_end + step_size
                 t_mid = t_mid +step_size
-                counter = +1
                 t_mid_arr.append(t_mid)
                 continue 
 
@@ -257,7 +248,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                 t_start = t_start + step_size
                 t_end = t_end + step_size
                 t_mid = t_mid +step_size
-                counter = +1
                 t_mid_arr.append(t_mid)
                 continue
 
@@ -267,7 +257,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                 t_start = t_start + step_size
                 t_end = t_end + step_size
                 t_mid = t_mid +step_size
-                counter = +1
                 t_mid_arr.append(t_mid)
                 continue
 
@@ -282,7 +271,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                 t_end = t_end + step_size
                 t_mid = t_mid +step_size
                 t_mid_arr.append(t_mid)
-                counter = +1
                 continue
 
             ps = 0.5 * (fperiod(y11) + fperiod(y21))
@@ -292,12 +280,10 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
 
                 lag_of_extr_close_0_arr.append(np.nan)
                 xc_of_extr_close_0_arr.append(np.nan)
-                
                 t_start = t_start + step_size
                 t_end = t_end + step_size
                 t_mid = t_mid +step_size
                 t_mid_arr.append(t_mid)
-                counter = +1
                 continue
 
             lag_peak_closest_0 = peaks[0]
@@ -311,43 +297,43 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
             t_mid = t_mid +step_size
             t_mid_arr.append(t_mid)
 
-        # print(xc_of_extr_close_0_arr)
-        # print(lag_of_extr_close_0_arr)
-
-
         for j, (xcval, lag) in enumerate(zip(xc_of_extr_close_0_arr, lag_of_extr_close_0_arr)):
             
             t_mid_window =  int(t_mid_arr[j]) 
             def dict_edge(ind:int, direction:str)->dict:
                 # function to create dictonary to label network with station names and loop index j
-                d = { 't_window':ind, 'UTC': times.iloc[t_mid_window], 'dir':direction}
+                d = { 't_window':ind, 'UTC': str(times.iloc[t_mid_window]), 'dir':direction, 'lag':lag}
                 return d
 
-            def lab(station:str, ind:int, value:list)->str:
+            def lab(station:str, ind:int, pc_power:int)->str:
                 'label for edges in network used as timestamp j'
                 # print(len(pc_power1),len(pc_power2),t_mid_window)
-                return f'{station}_{ind}_{value[ind]}'
-            
-            if xcval>0 and lag >0:
+                return f'{station}_{ind}_{np.round(pc_power[ind],5)}' 
+            # np.nan values should be rejected in below if statments
+            # the same value for j in for one pair may not work for another pair including the same station case where the Pc power has been rejected
+            if xcval>0 and lag > delta:
                 dir_net[i].add_edge(lab(s1name,j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'A-B'))
-            elif xcval>0 and lag <0:
+            elif xcval>0 and lag < -delta:
                 dir_net[i].add_edge(lab(s2name,j,pc_power2), lab(s1name, j,pc_power1), attr_dict = dict_edge(j,'B-A'))
-            elif xcval<0 and lag <0:
+            elif xcval<0 and lag < -delta:
                 dir_net[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'A-B'))
-            elif xcval<0 and lag>0:
+            elif xcval<0 and lag > delta:
                 dir_net[i].add_edge(lab(s2name, j,pc_power2), lab(s1name, j,pc_power1), attr_dict = dict_edge(j,'B-A'))
-            elif xcval>0 and lag==0:
+            elif xcval>0:
                 undir_net_inphase[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'NA'))
-            elif xcval<0 and lag==0:
+            elif xcval<0:
                 undir_net_antiphase[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'NA'))
+
+            # output type dictionary with the type of network and later combine
     
-def network_global(file_path:str, comp:str, start_datetime:str, end_datetime:str)-> list:
+def network_global(file_path:str, comp:str, start_datetime:str, end_datetime:str, year:str)-> list:
     '''function to create both a directed and undirected global netowrk from data for componenet comp n,e or z,
     Geomagnetic coordinates> (magnetic north (n), magnetic east (e) and vertical down (z)) 
     appling the xcor-peaks-finding and network appending function, network_append different pairs of stations combinatorially
     for all pairs and returning text files for all directed and undirected netowrks'''
     # MLT gives the magnetic longitude (E AND W, relative to IGRF model), MGALAT is the magnetic latitude is the (N and S)
-    # initialising directed and undirected network arrays to store values for all Pc bands
+    # initialising directed and undirected network arrays to store values for all Pc band
+    print(start_datetime, end_datetime)
     global dir_net
     global undir_net_inphase
     global undir_net_antiphase
@@ -363,27 +349,69 @@ def network_global(file_path:str, comp:str, start_datetime:str, end_datetime:str
     time_reference_data = f_xml_read(f'{file_path}/{year}_{station_names[0]}_1s_final.xdr')
     time_vals, time_indices = time_arr_from_unix(time_reference_data, comp, start_datetime, end_datetime)
 
-    for ind, label in enumerate(nc2_labels):
-        print(label,'station pair out of', num_stations,'stations with', ind,'out of',len(nc2_labels),'operations', comp)
+
+    for ind, label in tqdm(enumerate(nc2_labels),desc=f'out of {len(nc2_labels)} operations'):
+        # print(label,'station pair out of', num_stations,'stations with', ind,'out of',len(nc2_labels),'operations', comp)
         dict_station_0 = f_xml_read(f'{file_path}/{year}_{label[0]}_1s_final.xdr')
         dict_station_1 = f_xml_read(f'{file_path}/{year}_{label[1]}_1s_final.xdr')
+        # Asuumed lengths of both data are the same and data gaps hae been suitably added !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         s0_data = dict_station_0[f'{comp}1'][time_indices]
         s1_data = dict_station_1[f'{comp}1'][time_indices]
-        network_append(label[0], s0_data, label[1], s1_data, time_vals, [20, 25, 1.5, 1.5], 0.3, gapfinder=dict_station_0['gapidentifier'])
+        network_append(label[0], s0_data, label[1], s1_data, time_vals, [20, 20, 1.5, 1.5], 0.3, gapfinder=dict_station_0['gapidentifier'])
 
     
     for i in [0,1]:
-        nx.write_edgelist(dir_net[i], f'networks_data/dir_net{i}_{comp}_20-25_peakh_0.3_num_stations_{num_stations}_170313.txt')
-        nx.write_edgelist(undir_net_inphase[i], f'networks_data/undir_net_inphase{i}_{comp}_20-25_peakh_0.3_num_stations_{num_stations}_170313_new.txt')
-        nx.write_edgelist(undir_net_antiphase[i], f'networks_data/undir_net_antiphase{i}_{comp}_20-25_peakh_0.3_num_stations_{num_stations}_170313_new.txt')
+        nx.write_edgelist(dir_net[i], f'networks_data/dir_net{i}_{comp}_20_peakh_0.3_num_stations_{num_stations}_{year}.txt')
+        nx.write_edgelist(undir_net_inphase[i], f'networks_data/undir_net_inphase{i}_{comp}_20_peakh_0.3_num_stations_{num_stations}_{year}.txt')
+        nx.write_edgelist(undir_net_antiphase[i], f'networks_data/undir_net_antiphase{i}_{comp}_20_peakh_0.3_num_stations_{num_stations}_{year}.txt')
 
+# isExist = os.path.exists(path)
+
+# if not isExist:
+  
+#   # Create a new directory because it does not exist 
+#   os.makedirs(path)
+#   print("The new directory is created!")
+
+# print('please enter start date-time in format YYYY-MM-DD H:MM:SS')
+# start_time = input()
+# print('please enter end date-time in format YYYY-MM-DD H:MM:SS')
+# end_time = input()
+# year = end_time.split('-')[0]
+# print(year)
+# for i in ['e','n','z']:
+#     network_global(file_path =f'networks_data/{year}', comp= i, 
+#         start_datetime=start_time,end_datetime=end_time, year=year)
+#     print(f'done {i} networks')
+# year = '2013-03-17 4:00:00'.split('-')[0]
+# print(f'networks_data/{year}')
+
+# for i in ['n']:
+#     print('comp',i)
+#     network_global(file_path ='networks_data/2015', comp= i, 
+#         start_datetime='2015-03-17 4:00:00',end_datetime='2015-03-17 12:00:00',year='2013')
+#     print(f'done {i} networks')
+# last comp that needs doing
+
+# for i in ['n']:
+#     print('comp',i)
+#     network_global(file_path ='networks_data/2012', comp= i, 
+#         start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 13:00:00',year='2012')
+#     print(f'done {i} networks')
 
 # time series data from 24/03/2012 starting at 3am and lasting for 4 hours with second resolution containing 7 stations
-for i in ['e','n','z']:
-    network_global(file_path ='networks_data/2013', comp= i, 
-        start_datetime='2013-03-17 4:00:00',end_datetime='2013-03-17 12:00:00')
-    print(f'done {i} networks')
-# run analysis file
-# import read_networkx_pcmodel
-# code to save all cluster networks for given component
-# network_global('20201111-18-30-supermag.csv', 'e',times_sec = 4*3600)
+# for i in ['e','n']:
+#     print('comp',i)
+#     network_global(file_path ='networks_data/2013', comp= i, 
+#         start_datetime='2013-03-17 4:00:00',end_datetime='2013-03-17 12:00:00',year='2013')
+#     print(f'done {i} networks')
+print('Enter event year, 2012, 2013, 2015:')
+year = input()
+print('Enter event component:')
+comp = input()
+if year == '2012':
+    network_global(file_path ='networks_data/2012', comp= comp, 
+        start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 13:00:00',year='2012')
+else: 
+        network_global(file_path ='networks_data/2015', comp= comp, 
+        start_datetime='2015-03-17 4:00:00',end_datetime='2015-03-17 12:00:00',year=year)
