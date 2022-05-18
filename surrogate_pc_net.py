@@ -218,7 +218,9 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
 
             y11 = butter_bandpass_filter(y11, 1/(pc_period[i+1]), 1/pc_period[i], fs, order=order)
             y21 = butter_bandpass_filter(y21, 1/(pc_period[i+1]), 1/pc_period[i], fs, order=order)
-
+            
+            for k in range(100):
+                np.random.shuffle(y11)
             # add pcpower
             pc_power11 = np.sum(y11**2)/len(y11)
             pc_power22 = np.sum(y21**2)/len(y21)
@@ -306,20 +308,20 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                 d = { 't_window':ind, 'UTC': str(times.iloc[t_mid_window]), 'dir':direction, 'lag':lag}
                 return d
 
-            def lab(station:str, ind:int, pc_power:int)->str:
+            def lab(station:str, ind:int)->str:
                 'label for edges in network used as timestamp j'
                 # print(len(pc_power1),len(pc_power2),t_mid_window)
-                return f'{station}_{ind}_{np.round(pc_power[ind],5)}'
+                return f'{station}_{ind}'
             
-            def dir_edge_assigner(net,i:int, xcval:float, lag:int):
+            def dir_edge_assigner(net, i:int, xcval:float, lag:int):
                 if xcval>0 and lag > delta:
-                 net[i].add_edge(lab(s1name,j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'A-B'))
+                 net[i].add_edge(lab(s1name,j), lab(s2name, j), attr_dict = dict_edge(j,'A-B'))
                 elif xcval>0 and lag < -delta:
-                    net[i].add_edge(lab(s2name,j,pc_power2), lab(s1name, j,pc_power1), attr_dict = dict_edge(j,'B-A'))
+                    net[i].add_edge(lab(s2name,j), lab(s1name, j), attr_dict = dict_edge(j,'B-A'))
                 elif xcval<0 and lag < -delta:
-                    net[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'A-B'))
+                    net[i].add_edge(lab(s1name, j), lab(s2name, j), attr_dict = dict_edge(j,'A-B'))
                 elif xcval<0 and lag > delta:
-                    net[i].add_edge(lab(s2name, j,pc_power2), lab(s1name, j,pc_power1), attr_dict = dict_edge(j,'B-A'))
+                    net[i].add_edge(lab(s2name, j), lab(s1name, j), attr_dict = dict_edge(j,'B-A'))
 
             # np.nan values should be rejected in below if statments
             # the same value for j in for one pair may not work for another pair including the same station case where the Pc power has been rejected
@@ -331,14 +333,13 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                         dir_edge_assigner(dir_net_t1 ,i, xcval, lag)
                     else:
                         dir_edge_assigner(dir_net_tn ,i, xcval, lag)
-
             else:
                 dir_edge_assigner(dir_net ,i, xcval, lag)
             
             if xcval>0:
-                undir_net_inphase[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'NA'))
+                undir_net_inphase[i].add_edge(lab(s1name, j), lab(s2name, j), attr_dict = dict_edge(j,'NA'))
             elif xcval<0:
-                undir_net_antiphase[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'NA'))
+                undir_net_antiphase[i].add_edge(lab(s1name, j), lab(s2name, j), attr_dict = dict_edge(j,'NA'))
             # output type dictionary with the type of network and later combine
 
 def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str, year:str, wave_amp_cutof:list, tlcc_thresh:float, dirnet_period_bin:bool)-> list:
@@ -388,15 +389,15 @@ def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str
     # need to add new labels for surrogate fuction
     if dirnet_period_bin:
         for i in [0,1]:
-            nx.write_edgelist(dir_net_t1[i], f'{save_path}/dir_net_t1{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(dir_net_tn[i], f'{save_path}/dir_net_tn{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')            
-            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(dir_net_t1[i], f'{save_path}/dir_net_t1{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(dir_net_tn[i], f'{save_path}/dir_net_tn{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')            
+            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
     else:
         for i in [0,1]:
-            nx.write_edgelist(dir_net[i], f'{save_path}/dir_net{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(dir_net[i], f'{save_path}/dir_net{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
 
 
 

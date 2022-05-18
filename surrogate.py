@@ -10,37 +10,30 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import itertools
 from collections import Counter
-import datetime
+import datetimegit
 import time
-
+import random
+from random import shuffle
 def _compute_AAFT_surrogates(a):
     i, data, angle = a
-
     # create Gaussian data
     gaussian = np.random.randn(len(data))
     # sorts the guassian data in size order
     gaussian.sort()
-
-
     # rescale data
     # data.argsort() indicies of sorted array
     ranks = data.argsort().argsort()
     rescaled_data = gaussian[ranks]
-
     # transform the time series to Fourier domain
     xf = np.fft.rfft(rescaled_data)
-     
     # randomise the time series with random phases     
     cxf = xf * np.exp(1j * angle)
-    
     # return randomised time series in time domain
     ft_surr_ts = np.fft.irfft(cxf, n = len(data) )
-
     # rescale back to amplitude distribution of original data
     sorted_original = data.copy()
     sorted_original.sort()
     ranks = ft_surr_ts.argsort().argsort()
-
     rescaled_data = sorted_original[ranks]
     
     return (i, rescaled_data)
@@ -257,7 +250,7 @@ def xcorr(x:list, y:list, lags:list, wparr:float, mode='full') -> np.array:
  
 
 
-def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str) ->None:
+def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, pc_type:str, comp:str) ->None:
     '''function to produce rolling window time lagged cross 
     correleation of two singals with peaks finding routine for signals with labels s1 and s2 
     
@@ -280,6 +273,16 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
     t_start = 0
     t_end = t_start + window_size
     count = 0
+
+    pc_periods = [5,10,45,150,600]
+
+    if pc_type == 'pc2':
+        t1 = pc_periods[0]
+        t2 = pc_periods[1]
+    elif pc_type == 'pc3':
+        t1 = pc_periods[1]
+        t2 = pc_periods[2]
+
     while t_end <= len(ts1):
         
         y1 = ts1[int(t_start):int(t_end)]
@@ -288,8 +291,6 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
         s2 = np.array(y2)
         num_nans_s1 = np.count_nonzero(np.isnan(s1))
         num_nans_s2 = np.count_nonzero(np.isnan(s2))
-        print('nans1', num_nans_s1)
-        print('nans2', num_nans_s2)
 
         if num_nans_s1>5 or num_nans_s2>5:
             t_start = t_start + window_size                
@@ -297,13 +298,11 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
             count += 1
             continue
 
-        y11 = butter_bandpass_filter(s1, 1/10, 1/5, fs, order=order)
-        y21 = butter_bandpass_filter(s2, 1/10, 1/5, fs, order=order)
-        print('y11',len(y11))
-        print('y21',len(y21))
-
-        
-        if (np.max(abs(y11))<0.3 or np.max(abs(y21))<0.3):
+        y11 = butter_bandpass_filter(s1, 1/t2, 1/t1, fs, order=order)
+        y21 = butter_bandpass_filter(s2, 1/t2, 1/t1, fs, order=order)
+        # print('y11',len(y11))
+        # print('y21',len(y21))     
+        if (np.max(abs(y11))<0.25 and np.max(abs(y21))<0.25):
             t_start = t_start + window_size                
             t_end = t_end + window_size
             count += 1
@@ -311,16 +310,32 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
 
         lags = np.arange(-(len(y21) - 1), len(y21))
         xc = xcorr(y11,y21,lags,wparr=0.6)
+        num_nans_xc = np.count_nonzero(np.isnan(xc))
+        
+        if num_nans_xc>10:
+            t_start = t_start + window_size                
+            t_end = t_end + window_size
+            count += 1
+            continue        
 
-        ss1= get_single_AAFT_surrogate(s1)
-        ss2 = get_single_AAFT_surrogate(s2)
+        # ss1= get_single_AAFT_surrogate(s1)
+        # ss2 = get_single_AAFT_surrogate(s2)
+        ss1 = s1
+        ss2 = s2
 
-        y11_sur = butter_bandpass_filter(ss1, 1/10, 1/5, fs, order=order)
-        y21_sur = butter_bandpass_filter(ss2, 1/10, 1/5, fs, order=order)
-        xc_sur = xcorr(y11_sur,y21_sur,lags,wparr=0.6)
+        fig, ax = plt.subplots(nrows=3,ncols=3, facecolor='w', edgecolor='k',figsize=(13,8))
+        fig.subplots_adjust(wspace=0.5, hspace=None)
 
-        fig, ax = plt.subplots(nrows=3,ncols=2, facecolor='w', edgecolor='k',figsize=(10,8))
-        fig.subplots_adjust(wspace=0.6, hspace=None)
+
+        labs = [f'{s1name} Pc2 wf autocorr',f'{s2name} Pc2 wf auto corr', ]
+        
+        for ind, arr in enumerate([y11, y21]):
+            # plotting waveform autocorrs
+            auto_xc = xcorr(arr,arr,lags,wparr=0.6)
+            ax[ind,2].plot(lags, auto_xc, label=f'{labs[ind]}')
+            ax[ind,2].axvline(x=0,c='red',ls='--')
+            ax[ind,2].grid()
+            ax[ind,2].legend()
 
         ax[0,0].plot(np.arange(len(y1)),y1, color='red', linestyle='--',label =f'{s1name} time series 1')
         ax1 = ax[0,0].twinx()
@@ -334,7 +349,7 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
         ax[0,0].legend()
         ax[1,0].plot(np.arange(len(y11)),y11, color='red', linestyle='--',label =f'{s1name} Pc2 waveform')
         ax[1,0].plot(np.arange(len(y21)),y21, label = f'{s2name} Pc2 waveform')
-        
+
         ax[1,0].set_ylabel('B (nT)')
         ax[1,0].grid()
         ax[1,0].legend()
@@ -351,6 +366,17 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
         ax0.set_ylabel(r'$B_{2} (nT)$')
         ax0.plot(np.arange(len(ss2)),ss2, label = f'{s2name} sur. time series 2')
         ax0.legend()
+
+        y21_sur = np.random.normal(np.mean(y21), np.std(y21), size=len(y21))
+        y11_sur = y11
+
+        auto_xc = xcorr(y11_sur, y11_sur, lags,wparr=0.6)
+        ax[2,2].plot(lags, auto_xc, label=f'{s2name} Pc2 wf shuffle autocorr')
+        ax[2,2].axvline(x=0,c='red',ls='--')
+        ax[2,2].grid()
+        ax[2,2].legend()
+
+        xc_sur = xcorr(y11_sur, y21_sur,lags,wparr=0.6)
         
         ax[0,1].set_ylabel(r'$B_{1} (nT)$')
         ax[0,1].grid()
@@ -363,7 +389,7 @@ def two_station_surrogate_xcor(s1name:str, s2name:str, md:pd.DataFrame, comp:str
         ax[1,1].legend()
         ax[2,1].plot(lags,xc_sur, label='sur. xcor')
         ax[2,1].set_xlabel('Time (s)')
-        ax[2,1].set_ylabel('Normalised xcor.')
+        # ax[2,1].set_ylabel('Normalised xcor.')
         ax[2,1].axvline(x=0,c='red',ls='--')
         ax[2,1].grid()
         ax[2,1].set_yticks(np.arange(-1,1,0.2))
@@ -387,5 +413,5 @@ print(md.columns.tolist())
 print(md.tail())
 # data set with only station names to be used as a label
 s_labels = md.drop_duplicates(subset=['IAGA'])['IAGA']
-two_station_surrogate_xcor(s_labels[2], s_labels[10], md, comp='e')
+two_station_surrogate_xcor(s_labels[2], s_labels[10], md, pc_type = 'pc2', comp='e')
 

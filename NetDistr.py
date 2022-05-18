@@ -5,18 +5,20 @@ from collections import Counter
 # from aacgmv2 import get_aacgm_coord
 from datetime import datetime
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+
 class NetDistr:
-    def __init__(self, edge_list_dir: str, n: int):
+    def __init__(self, edge_list_dir: str, n:int):
         G = nx.read_edgelist(edge_list_dir)
         self.edge_list = list(G.edges(data=True))
         self.n = n
         station_data = pd.read_csv('supermag-stations.csv')
         # 0 index is of key is GEOLON, 1 is GEOLAT, 2 MLON, 3 MLAT
-        self.stations_dict =  station_data.set_index('IAGA').T.to_dict('list')
-        all_times = [s[2]['attr_dict']['UTC'] for s in self.edge_list]
-        self.ordered_times = sorted(list(set(all_times)))
-        self.date = self.edge_list[0][2]['attr_dict']['UTC'].split(' ')[0]
+        self.num_edges = len(self.edge_list)
+        if self.num_edges>2:
+            self.stations_dict = station_data.set_index('IAGA').T.to_dict('list')
+            all_times = [s[2]['attr_dict']['UTC'] for s in self.edge_list]
+            self.ordered_times = sorted(list(set(all_times)))
+            self.date = self.edge_list[0][2]['attr_dict']['UTC'].split(' ')[0]
 
 
     def t_close(self, target_time: str) -> str:
@@ -40,17 +42,14 @@ class NetDistr:
             node_counter_dict[edge_time][edge[1]] += 1
         
         for time, vals in node_counter_dict.items():
-            # print(time,vals)
-            # break
             stations  = [station for station in vals.keys()]
-            print(time,len(stations), len(set(stations)))
+            # print(time,len(stations), len(set(stations)))
             cov_dict[time] = np.round(len(stations)/self.n, 2)
 
         df = pd.DataFrame.from_dict(cov_dict, orient='index')
         df = df.sort_index()
-        print(df)
 
-    def create_pivottable(self) -> pd.DataFrame:
+    def create_pivottable(self, start_t:str, end_t:str, pc:str) -> pd.DataFrame:
 
         node_counter_dict = dict()
         for ind,edge in tqdm(enumerate(self.edge_list)):
@@ -60,30 +59,34 @@ class NetDistr:
             # specifying/setting dict key and asinging count to counter 
             node_counter_dict[edge_time][edge[0]] += 1
             node_counter_dict[edge_time][edge[1]] += 1
-        # print(node_counter_dict.keys())
-        # for v in node_counter_dict.values():
-        #     a = [i for i in v.keys()]
 
-            
         pivot_table = pd.DataFrame([])
+        # add start and end-times used to create equally spaced tracer for 
+        # pivot table and heatmap most useful for large window-sizes i.e Pc3
+        # if pc == 'pc3':
+        #     f='1200s'
+        # elif pc == 'pc2':
+        #     f='100s'            
+        # times = pd.date_range(f'{self.date} {start_t}', f'{self.date} {end_t}', freq=f)
+        # for t in times:
+        #     t = datetime.strftime(t,'%Y-%m-%d %H:%M:%S')
+        #     new_row = pd.DataFrame(index=[t], columns=[np.arange(1,self.n)])
+        #     pivot_table = pivot_table.append(new_row)
+        #     pivot_table.loc[t, 1] = 1
+        # ---------------------------------------------
         for time, node_counter in node_counter_dict.items():
-            # print(time,node_counter)
             new_row = pd.DataFrame(index=[time], columns=[np.arange(1,self.n)])
             pivot_table = pivot_table.append(new_row)
-
             degree_counts = Counter(list(node_counter.values()))
-            # print(degree_counts)
             for degree_key, degree_count in degree_counts.items():
-                # print(degree_key, degree_count)
                 pivot_table.loc[time, degree_key] = degree_count
 
-                
         pivot_table = pivot_table.sort_index()
         pivot_table.fillna(value=np.nan, inplace=True)
         return pivot_table
 
 
-    def create_pivottable_by_mlt(self, mlt_lower_lim:float) -> pd.DataFrame:
+    def create_pivottable_by_mlt(self, mlt_low_lim:float, start_t:str, end_t:str, pc:str) -> pd.DataFrame:
 
         node_counter_dict = dict()
         for edge in tqdm(self.edge_list):
@@ -91,7 +94,6 @@ class NetDistr:
             edge_time = edge[2]['attr_dict']['UTC']
             if edge_time not in node_counter_dict:
                 node_counter_dict[edge_time] = Counter()
-
            # needs to be writen out because calling function many times slows down code
             n1_name = edge[0].split('_')[0]
             n2_name = edge[1].split('_')[0]
@@ -106,11 +108,22 @@ class NetDistr:
             mlt2 = (24 + (utc_hours + (glon2 + geo_north_lon)/15))
             mltrange = abs(mlt1-mlt2)
 
-            if mlt_lower_lim < mltrange:
+            if mlt_low_lim < mltrange:
                 node_counter_dict[edge_time][edge[0]] += 1
                 node_counter_dict[edge_time][edge[1]] += 1
-            
+
         pivot_table = pd.DataFrame([])
+        # if pc == 'pc3':
+        #     f='1200s'
+        # elif pc == 'pc2':
+        #     f='100s'
+        # times = pd.date_range(f'{self.date} {start_t}', f'{self.date} {end_t}', freq=f)
+        # for t in times:
+        #     t = datetime.strftime(t,'%Y-%m-%d %H:%M:%S')
+        #     new_row = pd.DataFrame(index=[t], columns=[np.arange(1,self.n)])
+        #     pivot_table = pivot_table.append(new_row)
+        #     pivot_table.loc[t, 1] = 1
+
         for time, node_counter in node_counter_dict.items():
             new_row = pd.DataFrame(index=[time], columns=[np.arange(1,self.n)])
             pivot_table = pivot_table.append(new_row)
@@ -119,7 +132,6 @@ class NetDistr:
             for degree_key, degree_count in degree_counts.items():
                 pivot_table.loc[time, degree_key] = degree_count
 
-                
         pivot_table = pivot_table.sort_index()
         pivot_table.fillna(value=np.nan, inplace=True)
         return pivot_table
@@ -315,9 +327,7 @@ class NetDistr:
         return deg_dists
 
     def t_snapshot_dist_power(self, times:list) -> dict:
-
         power_dist = {}
-
         for t in times:
             nearest_t = self.t_close(t)
             power_dist[nearest_t] = []
@@ -336,83 +346,20 @@ class NetDistr:
 
         return power_dist
 
-    def average_pc_ts(self) -> list:
 
-        node_counter_dict = dict()
-        for ind,edge in tqdm(enumerate(self.edge_list)):
-            edge_time = edge[2]['attr_dict']['UTC']
-            if edge_time not in node_counter_dict:
-                node_counter_dict[edge_time] = []
-            # specifying/setting dict key and asinging count to counter 
-            node_counter_dict[edge_time].add(edge[0])
-            node_counter_dict[edge_time].add(edge[1])
+    def pc_power(self, ulf_power_filename:str, times:list, band:int):
+        '''mean ulf powercs for pc single band for corespondig times'''
+        pc_powers = pd.read_csv(ulf_power_filename)
+        pc_powers['Date_UTC'] = pd.to_datetime(pc_powers['Date_UTC'])
+        dict_pcp = {}
+        for t in times:
+            t = self.t_close(t)
+            ts = pc_powers[pc_powers['Date_UTC'] == t][['Date_UTC', 'IAGA','PC2_IPOW','PC3_IPOW','PC4_IPOW','PC5_IPOW']]
+            powers = ['PC2_IPOW', 'PC3_IPOW', 'PC4_IPOW', 'PC5_IPOW']
+            dict_pcp[t] = np.array(ts[powers[band]].values)
+        return dict_pcp
 
-        # loop through times and average
-            
-        pivot_table = pd.DataFrame([])
-        for time, node_counter in node_counter_dict.items():
-            # print(time,node_counter)
-            new_row = pd.DataFrame(index=[time], columns=[np.arange(1,self.n)])
-            pivot_table = pivot_table.append(new_row)
 
-            degree_counts = Counter(list(node_counter.values()))
-            # print(degree_counts)
-            for degree_key, degree_count in degree_counts.items():
-                # print(degree_key, degree_count)
-                pivot_table.loc[time, degree_key] = degree_count
-
-                
-        pivot_table = pivot_table.sort_index()
-        pivot_table.fillna(value=np.nan, inplace=True)
-        return pivot_table
-
-def bounds_arrs(arrs:dict)->int:
-    vals = [[max(i), min(i)] for i in arrs.values()]
-    vals = np.array(vals).flatten()
-    l_val = np.ceil(min(vals))
-    u_val = np.ceil(max(vals))
-    return l_val, u_val
-
-def bounds_arrs_deg(arrs:dict)->int:
-    # bnch of counter in vals
-    vals = [i for i in arrs.values()]
-    vals = [[max(i), min(i)] for i in arrs.values()]
-    vals = np.array(vals).flatten()
-    l_val = min(vals)
-    u_val = max(vals)
-    return l_val, u_val
-# create a function to plot all histograms for given snapshots
-path ='networks_data/2015_nets/comp_e'
-file_handel = '_e_20_peakh_0.3_n_128_2015_0.2_2.0.txt'
-file_names = ['dir_net','undir_net_inphase','undir_net_antiphase']
-for i in [0,1]:
-    for f in file_names:
-        file_short = f'{f}{i}'
-        file_full =f'{file_short}{file_handel}'
-        dist = NetDistr(f'{path}/{file_full}', 128)
-        # # pivottable.edge_list
-        # can create a function which plots all the distrobutions with all the file names
-        # and specified file path
-        times = ['04:28:20', '04:45:50', '06:00:00' ]
-        power_dist = dist.t_snapshot_dist_power(times)
-        deg_dist =  dist.t_snapshot_dist(times)
-        fig, ax = plt.subplots(nrows=2,ncols=3, facecolor='w', edgecolor='k',figsize=(10,8))
-        fig.suptitle(" ".join(file_short.split('_')[0:3]))
-        lb1, ub1 = bounds_arrs(power_dist)
-        lb2, ub2 = bounds_arrs_deg(deg_dist)
-        bins1 = np.linspace(lb1,ub1,20)
-        labs = ['pre-onset','onset','post-onset']
-        for ind, val in enumerate(power_dist.keys()):
-            ax[0,ind].set_title(f'{val}\n{labs[ind]}')
-            ax[0,ind].hist(power_dist[val], bins=bins1, edgecolor="red")
-            ax[0,ind].set_xlabel('log(nT^2)')
-            ax[1,ind].bar(deg_dist[val].keys(),deg_dist[val].values(), edgecolor="red", width=1.0 )
-            ax[1,ind].set_xlim(lb2,ub2)
-            ax[1,ind].set_xlabel('degree')
-        ax[0,0].set_ylabel('freq')
-        ax[1,0].set_ylabel('freq')
-        plt.savefig(f'plots/dist_{file_short}.png')
-        # plt.show()
 # # er = dist.ts_con_length_ratio_by_mlt(4)
 # # er.plot()
 # # plt.show()
