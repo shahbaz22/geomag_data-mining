@@ -322,16 +322,15 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                     net[i].add_edge(lab(s2name, j,pc_power2), lab(s1name, j,pc_power1), attr_dict = dict_edge(j,'B-A'))
 
             # np.nan values should be rejected in below if statments
-            # the same value for j in for one pair may not work for another pair including the same station case where the Pc power has been rejected
-            # could test this if-command code in a new program with a radom array of numbers
             if dirnet_pb:
-                # if lags outside of delta range
+                # if lags outside of delta range, make directed network 
                 if lag > delta or lag < -delta:
+                    # detmerining period of directed edge, within one period wither side of 0 lag
                     if lag < pc_period[i+1] and lag > - pc_period[i+1]:
                         dir_edge_assigner(dir_net_t1 ,i, xcval, lag)
                     else:
                         dir_edge_assigner(dir_net_tn ,i, xcval, lag)
-
+            # if edges do not need to be seperated by period them throw them all into a directed network
             else:
                 dir_edge_assigner(dir_net ,i, xcval, lag)
             
@@ -339,7 +338,6 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
                 undir_net_inphase[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'NA'))
             elif xcval<0:
                 undir_net_antiphase[i].add_edge(lab(s1name, j,pc_power1), lab(s2name, j,pc_power2), attr_dict = dict_edge(j,'NA'))
-            # output type dictionary with the type of network and later combine
 
 def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str, year:str, wave_amp_cutof:list, tlcc_thresh:float, dirnet_period_bin:bool)-> list:
     '''function to create both a directed and undirected global netowrk from data for componenet comp n,e or z,
@@ -388,15 +386,15 @@ def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str
     # need to add new labels for surrogate fuction
     if dirnet_period_bin:
         for i in [0,1]:
-            nx.write_edgelist(dir_net_t1[i], f'{save_path}/dir_net_t1{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(dir_net_tn[i], f'{save_path}/dir_net_tn{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')            
-            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(dir_net_t1[i], f'{save_path}/dir_net_t1{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')
+            nx.write_edgelist(dir_net_tn[i], f'{save_path}/dir_net_tn{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')            
+            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')
+            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')
     else:
         for i in [0,1]:
-            nx.write_edgelist(dir_net[i], f'{save_path}/dir_net{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
-            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}.txt')
+            nx.write_edgelist(dir_net[i], f'{save_path}/dir_net{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')
+            nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')
+            nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}smr_min.txt')
 
 
 
@@ -404,31 +402,43 @@ print('Enter event year, 2012, 2013, 2015:')
 year = input()
 print('Enter event component:')
 comp = input()
-print('Enter event network wave amp cutoff Pc2 (0.2,0.25):')
-wave_amp_Pc2 = float(input())
-print('Enter event network wave amp cutoff Pc3 (2,2.5):')
-wave_amp_Pc3 = float(input())
-wave_amp = [wave_amp_Pc2, wave_amp_Pc3]
-print('Enter tlcc_threshold (0.4,0.5):')
-tlcc_threshold = float(input())
+# print('Enter event network wave amp cutoff Pc2 (0.2,0.25):')
+# wave_amp_Pc2 = float(input())
+# print('Enter event network wave amp cutoff Pc3 (2,2.5):')
+# wave_amp_Pc3 = float(input())
+# wave_amp = [wave_amp_Pc2, wave_amp_Pc3]
+wave_amp = [0.25,2.5]
+# print('Enter tlcc_threshold (0.3, 0.4,0.5):')
+# tlcc_threshold = float(input())
+tlcc_threshold = 0.3
 # s_path = f'/Users/sc/conda_envs/geomag/networks_data/2012_nets/comp_e'
-s_path = f'/home/space/phrmfl/Shared/disk/_Users_sc_conda_envs_geomag/networks_data/{year}_nets/comp_{comp}'
+s_path = f'/home/space/phrmfl/Shared/disk/_Users_sc_conda_envs_geomag/networks_data/{year}_nets/comp_{comp}/smr_min'
 path_exists = os.path.exists(s_path)
 if not path_exists:
   # Create a new directory because it does not exist 
   os.makedirs(s_path)
   print(f"The new directory {s_path} is created!")
 
-# network_global(save_path = s_path ,comp= 'e', 
-#     start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 13:00:00',
-#     year='2012',wave_amp_cutof=[0.25, 2.5], tlcc_thresh = 0.3, dirnet_period_bin=True)
-# else: 
+# Dst/SMR min times
 if year == '2012':
     # analysis file path jesper
     network_global(save_path = s_path ,comp= comp, 
-        start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 13:00:00',
-        year='2012',wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold,dirnet_period_bin=True)
-else: 
+        start_datetime='2012-01-22 21:00:00',end_datetime='2012-01-23 05:00:00',
+        year='2012',wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold, dirnet_period_bin=True)
+elif year == '2013': 
         network_global(save_path = s_path ,comp= comp, 
-        start_datetime='2015-03-17 4:00:00',end_datetime='2015-03-17 12:00:00',
+        start_datetime=f'{year}-03-17 15:30:00',end_datetime=f'{year}-03-17 23:30:00',
         year=year, wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold, dirnet_period_bin=True)
+elif year == '2015': 
+        network_global(save_path = s_path ,comp= comp, 
+        start_datetime=f'{year}-03-17 19:30:00',end_datetime=f'{year}-03-18 03:30:00',
+        year=year, wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold, dirnet_period_bin=True)
+# if year == '2012':
+#     # analysis file path jesper
+#     network_global(save_path = s_path ,comp= comp, 
+#         start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 16:00:00',
+#         year='2012',wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold, dirnet_period_bin=True)
+# else: 
+#         network_global(save_path = s_path ,comp= comp, 
+#         start_datetime=f'{year}-03-17 4:00:00',end_datetime=f'{year}-03-17 12:00:00',
+#         year=year, wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold, dirnet_period_bin=True)
