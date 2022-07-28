@@ -12,12 +12,20 @@ class NetDistr:
         self.edge_list = list(G.edges(data=True))
         self.n = n
         station_data = pd.read_csv('supermag-stations.csv')
-        # 0 index is of key is GEOLON, 1 is GEOLAT, 2 MLON, 3 MLAT
+        self.station_data = station_data.set_index('IAGA')
+                # 0 index is of key is GEOLON, 1 is GEOLAT, 2 MLON, 3 MLAT
         self.num_edges = len(self.edge_list)
         if self.num_edges>2:
-            self.stations_dict = station_data.set_index('IAGA').T.to_dict('list')
+            self.stations_dict = self.station_data.T.to_dict('list')
             all_times = [s[2]['attr_dict']['UTC'] for s in self.edge_list]
             self.ordered_times = sorted(list(set(all_times)))
+
+    def mag_coords_dict(self):
+        mag_coords_dict = {}
+        for station , v in self.station_data.to_dict('index').items():
+            mlat, mlon = v['AACGMLAT'], v['AACGMLON']
+            mag_coords_dict[station] = (mlon, mlat)
+        return mag_coords_dict
 
     def t_close(self, target_time: str) -> str:
         date_time = f'{self.date} {target_time}'
@@ -109,6 +117,99 @@ class NetDistr:
         pivot_table.fillna(value=np.nan, inplace=True)
         return pivot_table
 
+    def create_pivottable_lags(self, start_dt:str, end_dt:str, pc:str, period_mult:int) -> pd.DataFrame:
+        
+        if pc == 'pc3':
+            times = self.complete_t_arr(start_dt, end_dt,20, pc=1)
+            period = 45*period_mult
+        else:
+            times = self.complete_t_arr(start_dt, end_dt,20, pc=0)
+            period = 10*period_mult
+
+        lag_counter_dict = dict()
+        for ind,edge in tqdm(enumerate(self.edge_list)):
+            edge_time = edge[2]['attr_dict']['UTC']
+            edge_lag = edge[2]['attr_dict']['lag']
+            
+            # if edge_lag> period or edge_lag<-period:
+            #     continue
+            # elif edge_lag==0 or abs(edge_lag)==1 or abs(edge_lag)==2:
+            #     continue
+
+            if edge_time not in lag_counter_dict:
+                lag_counter_dict[edge_time] = Counter()
+            # specifying/setting dict key and asinging count to counter 
+            lag_counter_dict[edge_time][edge_lag] += 1
+
+        pivot_table = pd.DataFrame([])
+        # add start and end-times used to create equally spaced tracer for 
+        # pivot table and heatmap most useful for large window-sizes i.e Pc3
+        # if wndow size and step size is the same than I can create a uniform time array
+
+        for t in times:
+            t = datetime.strftime(t,'%Y-%m-%d %H:%M:%S')
+            new_row = pd.DataFrame(index=[t], columns=[np.arange(-period,period)])
+            pivot_table = pivot_table.append(new_row)
+            pivot_table.loc[t, 2] = 0
+        for time, lag_counter in lag_counter_dict.items():
+            new_row = pd.DataFrame(index=[time], columns=[np.arange(-period,period)])
+
+            for lag_key, lag_count in lag_counter.items():
+                pivot_table.loc[time, lag_key] = lag_count
+
+        pivot_table = pivot_table.sort_index()
+        pivot_table.fillna(value=np.nan, inplace=True)
+        return pivot_table
+    
+    def create_pivottable_lags_mlt(self, mlt_low_lim:float, start_dt:str, end_dt:str, pc:str, period_mult:int) -> pd.DataFrame:
+        
+        if pc == 'pc3':
+            times = self.complete_t_arr(start_dt, end_dt,20, pc=1)
+            period = 45*period_mult
+        else:
+            times = self.complete_t_arr(start_dt, end_dt,20, pc=0)
+            period = 10*period_mult
+
+        lag_counter_dict = dict()
+        for ind,edge in tqdm(enumerate(self.edge_list)):
+
+            edge_time = edge[2]['attr_dict']['UTC']
+            edge_lag = edge[2]['attr_dict']['lag']
+            if edge_time not in lag_counter_dict:
+                lag_counter_dict[edge_time] = Counter()            
+            
+            n1_name = edge[0].split('_')[0]
+            n2_name = edge[1].split('_')[0]
+            glon1 = self.stations_dict[n1_name][2]
+            glon2 = self.stations_dict[n2_name][2]
+            dt = datetime.strptime(edge_time,'%Y-%m-%d %H:%M:%S')
+            utc_hours = np.round(dt.hour + dt.minute/60, 2)
+            glon1 = float(glon1)
+            glon2 = float(glon2)
+            geo_north_lon = -72
+            mlt1 = (24 + (utc_hours + (glon1 + geo_north_lon)/15))
+            mlt2 = (24 + (utc_hours + (glon2 + geo_north_lon)/15))
+            mltrange = abs(mlt1-mlt2)
+
+            if mlt_low_lim < mltrange:
+                lag_counter_dict[edge_time][edge_lag] += 1
+
+        pivot_table = pd.DataFrame([])
+
+        for t in times:
+            t = datetime.strftime(t,'%Y-%m-%d %H:%M:%S')
+            new_row = pd.DataFrame(index=[t], columns=[np.arange(-period,period)])
+            pivot_table = pivot_table.append(new_row)
+            pivot_table.loc[t, 2] = 0
+        for time, lag_counter in lag_counter_dict.items():
+            new_row = pd.DataFrame(index=[time], columns=[np.arange(-period,period)])
+
+            for lag_key, lag_count in lag_counter.items():
+                pivot_table.loc[time, lag_key] = lag_count
+
+        pivot_table = pivot_table.sort_index()
+        pivot_table.fillna(value=np.nan, inplace=True)
+        return pivot_table
 
     def create_pivottable_by_mlt(self, mlt_low_lim:float, start_dt:str, end_dt:str, pc:str) -> pd.DataFrame:
 
@@ -310,11 +411,24 @@ class NetDistr:
                 edge_counter_dict[edge_time] = 0
             edge_counter_dict[edge_time] += 1
        
-        # total_conn = {}
-
-        # for time, v in edge_counter_dict.items():
-        #     total_conn[time] = v
         return self.dict_to_pd_df(edge_counter_dict,'total')
+
+    def ts_conj_conn(self) -> pd.DataFrame:
+        m_coords_dict = self.mag_coords_dict()
+        edge_counter_dict = dict()
+        for edge in self.edge_list:
+            edge_time = edge[2]['attr_dict']['UTC']
+            if edge_time not in edge_counter_dict:
+                edge_counter_dict[edge_time] = 0
+            n1_label = edge[0].split('_')[0]
+            n2_label = edge[1].split('_')[0]
+            mlon1 = m_coords_dict[n1_label][0]
+            mlon2 = m_coords_dict[n2_label][0]
+
+            if abs(mlon1 - mlon2) <= 2:
+                edge_counter_dict[edge_time] += 1
+ 
+        return self.dict_to_pd_df(edge_counter_dict,'total')        
 
 
     def t_snapshot_dist(self, times:list) -> dict:
@@ -368,4 +482,4 @@ class NetDistr:
             dict_pcp[t] = np.array(ts[powers[band]].values)
         return dict_pcp
 
-
+    
