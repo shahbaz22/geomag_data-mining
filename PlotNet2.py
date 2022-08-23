@@ -23,7 +23,7 @@ from matplotlib.colors import LogNorm
 import os
 
 class PlotNet: 
-    def __init__(self, net_labs:list, ulf_fname:str, n:int, dt_start:str, dt_end:str):
+    def __init__(self, net_labs:list, ulf_fname:str, n:int, dt_start:str, dt_end:str, surrogate:bool):
         'comp needs to be input array and also bands'
         self.n = n
         self.net_labs= net_labs
@@ -32,12 +32,18 @@ class PlotNet:
         self.dt_end = dt_end
         # fname always ends in date and not .txt and includes path
         self.year = dt_start.split(' ')[0].split('-')[0]
+        self.surrogate = surrogate
         # create save path and save_path fname based on inputs
 
     # can ajust file hadnels and paths from this function
+    # passes file information to NetDistr class to then create dictionaries and dataframes for plotting
     def path_and_fhandel(self, comp, band):
         path = f'networks_data/{self.year}_nets/comp_{comp}/'
-        fhandel = f'{band}_{comp}_{self.n}_0.3_0.25_2.5_{self.year}.txt'
+        if self.surrogate == True:
+            fhandel = f'{band}_surr_{comp}_{self.n}_0.3_0.25_2.5_{self.year}.txt'
+        else:
+            fhandel = f'{band}_{comp}_{self.n}_0.3_0.25_2.5_{self.year}.txt'
+
         return path, fhandel
 
     def utc_sort_reduce(self, utc_times, deliminator='T'):
@@ -105,7 +111,7 @@ class PlotNet:
         if mlt==True:
             pt = netdistr.create_pivottable_lags_mlt(9, self.dt_start, self.dt_end, f'pc{band+2}', period_mult=pm)
         else:
-            pt = netdistr.create_pivottable_lags(self.dt_start, self.dt_end, f'pc{band+2}', period_mult=pm)
+            pt = netdistr.create_pivottable_lags(self.dt_start, self.dt_end, f'pc{band+2}', period_mult=pm, maxlags=[20,20])
         pt.index = pd.to_datetime(pt.index)
         print(net_label, band, comp)
         return pt
@@ -170,6 +176,93 @@ class PlotNet:
                 num_conn[band][comp] = {'long': long_df, 'short': short_df} 
         return num_conn
 
+    def single_net_all_comp_and_bands_all_net_params(self, net_type:str, net_param:str):
+        num_conn = dict()
+        for comp in ['n','e','z']:
+            path, fhandel = self.path_and_fhandel(comp, band = 0)
+            fname = path + net_type + fhandel
+            netdistr = NetDistr(fname, self.n)
+            num_conn[comp] = {}
+            
+            if net_param == 'long-mlt_div_short-mlt':
+                df = netdistr.ts_con_length_ratio_by_mlt(9)
+                for ind, lab in enumerate(['ratio','top','bottom']):
+                    num_conn[comp][lab] = df[ind]
+            
+            elif net_param == 'long_div_short':
+                df = netdistr.ts_con_length_ratio_by_length()
+                for ind, lab in enumerate(['ratio','top','bottom']):
+                    num_conn[comp][lab] = df[ind]
+            
+            elif net_param == 'conj_div_north_south':                
+                df = netdistr.ts_conj_div_north_south_conn() 
+                for ind, lab in enumerate(['ratio','top','bottom']):
+                    num_conn[comp][lab] = df[ind]            
+            
+            elif net_param == 'north_south_div_north':                
+                df = netdistr.ts_north_south_div_north_conn() 
+                for ind, lab in enumerate(['ratio','top','bottom']):
+                    num_conn[comp][lab] = df[ind]            
+            
+            elif net_param == 'ew_div_we':                
+                df = netdistr.ts_ew_div_we_conn() 
+                for ind, lab in enumerate(['ratio','top','bottom']):
+                    num_conn[comp][lab] = df[ind]            
+            
+            elif net_param == 'ns_div_sn':
+                df = netdistr.ts_ns_div_sn_conn()
+                for ind, lab in enumerate(['ratio','top','bottom']):
+                    num_conn[comp][lab] = df[ind]            
+            else:
+                print('wrong net_param label used!') 
+                print('choose from: conj_div_north_south, north_south_div_north, long_div_short, ew_div_we, ns_div_sn')
+                break
+
+        return num_conn
+    
+    def all_nets_conj_ns_conn(self, band:int, comp:str):
+        num_conn = dict()
+        for net_label in self.net_labs:
+            path, fhandel = self.path_and_fhandel(comp, band)
+            fname = path + net_label + fhandel
+            netdistr = NetDistr(fname, self.n)
+            df = netdistr.ts_conj_div_north_south_conn()
+            num_conn[net_label] = df 
+        return num_conn
+
+    def single_net_conj_ns_all_comp_bands(self, net_type:str):
+        num_conn = dict()
+        for band in [0,1]:
+            num_conn[band]={}
+            for comp in ['n','e','z']:
+                path, fhandel = self.path_and_fhandel(comp, band)
+                fname = path + net_type + fhandel
+                netdistr = NetDistr(fname, self.n)
+                df = netdistr.ts_conj_div_north_south_conn()
+                num_conn[band][comp] = df
+        return num_conn
+    
+    def all_nets_n_ns_conn(self, band:int, comp:str):
+        num_conn = dict()
+        for net_label in self.net_labs:
+            path, fhandel = self.path_and_fhandel(comp, band)
+            fname = path + net_label + fhandel
+            netdistr = NetDistr(fname, self.n)
+            df = netdistr.ts_north_div_north_south_conn()
+            num_conn[net_label] = df
+        return num_conn
+
+    def single_net_n_ns_all_comp_bands(self, net_type:str):
+        num_conn = dict()
+        for band in [0,1]:
+            num_conn[band]={}
+            for comp in ['n','e','z']:
+                path, fhandel = self.path_and_fhandel(comp, band)
+                fname = path + net_type + fhandel
+                netdistr = NetDistr(fname, self.n)
+                df = netdistr.ts_north_div_north_south_conn()
+                num_conn[band][comp] = df
+        return num_conn
     # can currenly run this code for all networks types and a single component and Pc band
     def plot_edge_ratio_ts(self, indices_fname:str):
 #         plt.rcParams.update({'font.size': 20})
@@ -353,7 +446,7 @@ class PlotNet:
         gs = fig.add_gridspec(num_plots, 3, width_ratios=[30,1,1])
         y_interval=[10,26]
         ylims = [[40,-40],[130,-130]]
-        colour1 = 'Purples_r'
+        colour1 = 'seismic'
         for i in [0,1]:
             heat_ax1, colorbar_ax1 = fig.add_subplot(gs[i,0]), fig.add_subplot(gs[i,1])    
             label = 'combined_net'
@@ -361,10 +454,16 @@ class PlotNet:
 
             # ------ sorting by setting range of lags and limits
             # pt1 = pt1.reindex(sorted(pt1.columns), axis=1)
-            pt1 = pt1[np.linspace(ylims[i][1],ylims[i][0],2*ylims[i][0]+1)]
+            try:
+                pt1 = pt1[np.linspace(ylims[i][1],ylims[i][0],2*ylims[i][0]+1)]
+            except KeyError:
+                print(f'need to change column extent within {sorted(pt1.columns)}')
+                raise KeyError()
             # # ---------
+            # with pd.option_context('display.max_rows', None, 'display.max_columns', None):  # more options can be specified also
+            #             print(pt1[0])
             ax1 = sb.heatmap(pt1.T, xticklabels = 3, yticklabels = y_interval[i], ax = heat_ax1, cmap = colour1, 
-            cbar_kws={'label': 'frequency'}, cbar_ax = colorbar_ax1, norm=LogNorm())
+            cbar_kws={'label': 'frequency'}, cbar_ax = colorbar_ax1)
             ax1.axes.get_xaxis().set_visible(False)
             heat_ax1.grid()
             heat_ax1.text(0.1, 1, f'{label}_pc{i+2}_{comp}', transform= heat_ax1.transAxes, bbox = dict(facecolor = 'white', alpha = 0.5))
@@ -412,13 +511,13 @@ class PlotNet:
                 # Create a new directory because it does not exist 
                 os.makedirs(s_path)
                 print(f"The new directory {s_path} is created!")
-            plt.savefig(f'plots/{year}_nets/comp_{comp}/nets_{save_label}_dist_lags_ts.png', facecolor='w')
+            plt.savefig(f'plots/{year}_nets/comp_{comp}/nets_{save_label}_dist_lags_ts_0-3_lag.png', facecolor='w')
         plt.show()
 
-dn = NetDistr('networks_data/2015_nets/comp_e/combined_net0.txt',128)
-df = dn.ts_conj_conn()
-df.plot()
-plt.show()
+# dn = NetDistr('networks_data/2015_nets/comp_e/combined_net0.txt',128)
+# df = dn.ts_conj_conn()
+# df.plot()
+# plt.show()
 
 # for i in [0]:
 #     if i ==0:

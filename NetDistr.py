@@ -5,6 +5,7 @@ from collections import Counter
 # from aacgmv2 import get_aacgm_coord
 from datetime import datetime
 from tqdm import tqdm
+from math import radians, cos, sin, asin, sqrt
 
 class NetDistr:
     def __init__(self, edge_list_dir: str, n:int):
@@ -19,6 +20,13 @@ class NetDistr:
             self.stations_dict = self.station_data.T.to_dict('list')
             all_times = [s[2]['attr_dict']['UTC'] for s in self.edge_list]
             self.ordered_times = sorted(list(set(all_times)))
+
+    def geo_coords_dict(self):
+        geo_coords_dict = {}
+        for station , v in self.station_data.to_dict('index').items():
+            glat, glon = v['GEOLAT'], v['GEOLON']
+            geo_coords_dict[station] = (glon, glat)
+        return geo_coords_dict    
 
     def mag_coords_dict(self):
         mag_coords_dict = {}
@@ -117,24 +125,22 @@ class NetDistr:
         pivot_table.fillna(value=np.nan, inplace=True)
         return pivot_table
 
-    def create_pivottable_lags(self, start_dt:str, end_dt:str, pc:str, period_mult:int) -> pd.DataFrame:
+    def create_pivottable_lags(self, start_dt:str, end_dt:str, pc:str, period_mult:int, maxlags:list) -> pd.DataFrame:
         
         if pc == 'pc3':
             times = self.complete_t_arr(start_dt, end_dt,20, pc=1)
             period = 45*period_mult
+            max_lag = maxlags[1]
+
         else:
             times = self.complete_t_arr(start_dt, end_dt,20, pc=0)
             period = 10*period_mult
+            max_lag = maxlags[0]
 
         lag_counter_dict = dict()
         for ind,edge in tqdm(enumerate(self.edge_list)):
             edge_time = edge[2]['attr_dict']['UTC']
             edge_lag = edge[2]['attr_dict']['lag']
-            
-            # if edge_lag> period or edge_lag<-period:
-            #     continue
-            # elif edge_lag==0 or abs(edge_lag)==1 or abs(edge_lag)==2:
-            #     continue
 
             if edge_time not in lag_counter_dict:
                 lag_counter_dict[edge_time] = Counter()
@@ -155,6 +161,14 @@ class NetDistr:
             new_row = pd.DataFrame(index=[time], columns=[np.arange(-period,period)])
 
             for lag_key, lag_count in lag_counter.items():
+                if abs(lag_key) ==1 or lag_key ==0 or abs(lag_key) ==2:
+                    if lag_count > max_lag:
+                        pivot_table.loc[time, lag_key] = max_lag
+                        continue
+                    else:
+                        pivot_table.loc[time, lag_key] =lag_count
+                        continue
+    
                 pivot_table.loc[time, lag_key] = lag_count
 
         pivot_table = pivot_table.sort_index()
@@ -212,7 +226,7 @@ class NetDistr:
         return pivot_table
 
     def create_pivottable_by_mlt(self, mlt_low_lim:float, start_dt:str, end_dt:str, pc:str) -> pd.DataFrame:
-
+        geo_cords = self.geo_coords_dict()
         node_counter_dict = dict()
         for edge in tqdm(self.edge_list):
 
@@ -222,12 +236,10 @@ class NetDistr:
            # needs to be writen out because calling function many times slows down code
             n1_name = edge[0].split('_')[0]
             n2_name = edge[1].split('_')[0]
-            glon1 = self.stations_dict[n1_name][2]
-            glon2 = self.stations_dict[n2_name][2]
+            glon1 = geo_cords[n1_name][0]
+            glon2 = geo_cords[n2_name][0]
             dt = datetime.strptime(edge_time,'%Y-%m-%d %H:%M:%S')
             utc_hours = np.round(dt.hour + dt.minute/60, 2)
-            glon1 = float(glon1)
-            glon2 = float(glon2)
             geo_north_lon = -72
             mlt1 = (24 + (utc_hours + (glon1 + geo_north_lon)/15))
             mlt2 = (24 + (utc_hours + (glon2 + geo_north_lon)/15))
@@ -295,7 +307,6 @@ class NetDistr:
         return degree_counts_mlt1, degree_counts_mlt2
 
     def create_t_snapshot_connection_lengths(self, time:str) -> list:
-
         mlt_ranges = []
         date, *_ = self.edge_list[0][2]['attr_dict']['UTC'].split(' ')
         date_time = f'{date} {time}'
@@ -363,44 +374,90 @@ class NetDistr:
         df = df.set_index('times')
         df = df.sort_index()
         return df
-   
-    def ts_con_length_ratio_by_mlt(self, mlt_lower_lim:float) -> pd.DataFrame:
 
+    def ts_con_length_ratio_by_length(self) -> pd.DataFrame:
+        geo_cords = self.geo_coords_dict()
         edge_counter_dict = dict()
         for edge in tqdm(self.edge_list):
-
             edge_time = edge[2]['attr_dict']['UTC']
             if edge_time not in edge_counter_dict:
                 edge_counter_dict[edge_time] = {'long':0, 'short':0}
-
            # needs to be writen out because calling function many times slows down code
             n1_name = edge[0].split('_')[0]
             n2_name = edge[1].split('_')[0]
-            glon1 = self.stations_dict[n1_name][2]
-            glon2 = self.stations_dict[n2_name][2]
+            glon1 = geo_cords[n1_name][0]
+            glon2 = geo_cords[n2_name][0]
+            glat1 = geo_cords[n1_name][1]
+            glat2 = geo_cords[n2_name][1]
+            lon1, lat1, lon2, lat2 = map(radians, [glon1, glat1, glon2, glat2])
+            # haversine formula 
+            dlon = lon2 - lon1 
+            dlat = lat2 - lat1 
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * asin(sqrt(a)) 
+            # Radius of earth in kilometers is 6371
+            km = 6371* c
+            # rounded up length of the US canada border including alaska
+            if km>9000:
+                edge_counter_dict[edge_time]['long'] += 1
+            else:
+                edge_counter_dict[edge_time]['short'] += 1
+
+        ratio_dict = {}
+        long_conn = {}
+        short_conn ={}
+        for time, v in edge_counter_dict.items():
+            long_conn[time] = v['long']
+            short_conn[time] = v['short']
+            if v['short'] ==0:
+                ratio_dict[time] = 0            
+            else:
+                ratio_dict[time] = v['long']/v['short']
+
+        ratio_dict = self.dict_to_pd_df(ratio_dict,'total')                       
+        long_conn = self.dict_to_pd_df(long_conn,'total')
+        short_conn = self.dict_to_pd_df(short_conn,'total')
+        return ratio_dict, long_conn, short_conn
+    
+    def ts_con_length_ratio_by_mlt(self, mlt_lower_lim:float) -> pd.DataFrame:
+        geo_cords = self.geo_coords_dict()
+        edge_counter_dict = dict()
+        
+        for edge in tqdm(self.edge_list):
+            edge_time = edge[2]['attr_dict']['UTC']
+            if edge_time not in edge_counter_dict:
+                edge_counter_dict[edge_time] = {'long':0, 'short':0}
+           # needs to be writen out because calling function many times slows down code
+            n1_name = edge[0].split('_')[0]
+            n2_name = edge[1].split('_')[0]
+            glon1 = geo_cords[n1_name][0]
+            glon2 = geo_cords[n2_name][0]
             dt = datetime.strptime(edge_time,'%Y-%m-%d %H:%M:%S')
             utc_hours = np.round(dt.hour + dt.minute/60, 2)
-            glon1 = float(glon1)
-            glon2 = float(glon2)
             geo_north_lon = -72
             mlt1 = (24 + (utc_hours + (glon1 + geo_north_lon)/15))
             mlt2 = (24 + (utc_hours + (glon2 + geo_north_lon)/15))
             mltrange = abs(mlt1-mlt2)
-
             if mlt_lower_lim < mltrange:
                 edge_counter_dict[edge_time]['long'] += 1
             else:
                 edge_counter_dict[edge_time]['short'] += 1
 
-        short_conn = {}
+        ratio_dict = {}
         long_conn = {}
-
+        short_conn ={}
         for time, v in edge_counter_dict.items():
-            short_conn[time] = v['short']
             long_conn[time] = v['long']
+            short_conn[time] = v['short']
+            if v['short'] ==0:
+                ratio_dict[time] = 0            
+            else:
+                ratio_dict[time] = v['long']/v['short']
 
-        return self.dict_to_pd_df(long_conn,'long'), self.dict_to_pd_df(short_conn,'short')
-
+        ratio_dict = self.dict_to_pd_df(ratio_dict,'total')                       
+        long_conn = self.dict_to_pd_df(long_conn,'total')
+        short_conn = self.dict_to_pd_df(short_conn,'total')
+        return ratio_dict, long_conn, short_conn
 
     def ts_all_conn(self) -> pd.DataFrame:
 
@@ -413,30 +470,154 @@ class NetDistr:
        
         return self.dict_to_pd_df(edge_counter_dict,'total')
 
-    def ts_conj_conn(self) -> pd.DataFrame:
+    def ts_conj_div_north_south_conn(self) -> pd.DataFrame:
         m_coords_dict = self.mag_coords_dict()
         edge_counter_dict = dict()
         for edge in self.edge_list:
             edge_time = edge[2]['attr_dict']['UTC']
             if edge_time not in edge_counter_dict:
-                edge_counter_dict[edge_time] = 0
+                edge_counter_dict[edge_time] = {'conj':0, 'n-s':0}
+            n1_label = edge[0].split('_')[0]
+            n2_label = edge[1].split('_')[0]
+            mlon1 = m_coords_dict[n1_label][0]
+            mlon2 = m_coords_dict[n2_label][0]
+            mlat1 = m_coords_dict[n1_label][1]
+            mlat2 = m_coords_dict[n2_label][1]
+            
+            if abs(mlon1 - mlon2) <= 2:
+                edge_counter_dict[edge_time]['conj'] += 1
+            elif mlat1>0 and mlat2<0:
+                edge_counter_dict[edge_time]['n-s'] += 1
+            elif mlat2>0 and mlat1<0:
+                edge_counter_dict[edge_time]['n-s'] += 1
+        
+        conj_north_south = {}
+        conj = {}
+        north_south = {}
+        for time, v in edge_counter_dict.items():
+            conj[time] =  v['conj']
+            north_south[time] = v['n-s']
+            if v['n-s']==0:
+                conj_north_south[time] = 0
+            else:
+                conj_north_south[time] = v['conj']/v['n-s']
+
+        conj_north_south = self.dict_to_pd_df(conj_north_south,'total')                       
+        conj = self.dict_to_pd_df(conj,'total')
+        north_south = self.dict_to_pd_df(north_south,'total')
+        return conj_north_south, conj, north_south
+
+
+    def ts_north_south_div_north_conn(self) -> pd.DataFrame:
+        m_coords_dict = self.mag_coords_dict()
+        edge_counter_dict = dict()
+        for edge in self.edge_list:
+            edge_time = edge[2]['attr_dict']['UTC']
+
+            if edge_time not in edge_counter_dict:
+                edge_counter_dict[edge_time] = {'n':0, 'n-s':0}
+            n1_label = edge[0].split('_')[0]
+            n2_label = edge[1].split('_')[0]
+            mlat1 = m_coords_dict[n1_label][1]
+            mlat2 = m_coords_dict[n2_label][1]
+
+            if mlat1>0 and mlat2>0:
+                edge_counter_dict[edge_time]['n'] += 1
+            elif mlat1>0 and mlat2<0:
+                edge_counter_dict[edge_time]['n-s'] += 1
+            elif mlat2>0 and mlat1<0:
+                edge_counter_dict[edge_time]['n-s'] += 1
+
+        north_south_north = {}
+        north_south = {}
+        north = {}
+        for time, v in edge_counter_dict.items():
+            north_south[time] = v['n-s']
+            north[time] = v['n']
+            if v['n']==0:
+                north_south_north[time] = 0
+            else:
+                north_south_north[time] = v['n-s']/v['n']
+        
+        north_south_north = self.dict_to_pd_df(north_south_north,'total')                       
+        north_south = self.dict_to_pd_df(north_south,'total')
+        north = self.dict_to_pd_df(north,'total')
+        return north_south_north, north_south, north
+
+    def ts_ew_div_we_conn(self) -> pd.DataFrame:
+        m_coords_dict = self.mag_coords_dict()
+        edge_counter_dict = dict()
+        for edge in self.edge_list:
+            edge_time = edge[2]['attr_dict']['UTC']
+
+            if edge_time not in edge_counter_dict:
+                edge_counter_dict[edge_time] = {'ew':0, 'we':0}
             n1_label = edge[0].split('_')[0]
             n2_label = edge[1].split('_')[0]
             mlon1 = m_coords_dict[n1_label][0]
             mlon2 = m_coords_dict[n2_label][0]
 
-            if abs(mlon1 - mlon2) <= 2:
-                edge_counter_dict[edge_time] += 1
- 
-        return self.dict_to_pd_df(edge_counter_dict,'total')        
+            if mlon1>mlon2:
+                    edge_counter_dict[edge_time]['we'] += 1
+            elif mlon2> mlon1:
+                edge_counter_dict[edge_time]['ew'] += 1
+        
+        ratio_dict = {}
+        we_dict = {}
+        ew_dict = {}
+        for time, v in edge_counter_dict.items():
+            ew_dict[time] = v['ew']
+            we_dict[time] = v['we']
+            if v['we']==0:
+                ratio_dict[time]= 0
+            else:
+                ratio_dict[time] = v['ew']/v['we']
+
+        ratio = self.dict_to_pd_df(ratio_dict,'total')                       
+        ew = self.dict_to_pd_df(ew_dict,'total')
+        we = self.dict_to_pd_df(we_dict,'total')
+        return ratio, ew, we
+        
+    def ts_ns_div_sn_conn(self) -> pd.DataFrame:
+        m_coords_dict = self.mag_coords_dict()
+        edge_counter_dict = dict()
+        for edge in self.edge_list:
+            edge_time = edge[2]['attr_dict']['UTC']
+
+            if edge_time not in edge_counter_dict:
+                edge_counter_dict[edge_time] = {'ns':0, 'sn':0}
+            n1_label = edge[0].split('_')[0]
+            n2_label = edge[1].split('_')[0]
+            mlat1 = m_coords_dict[n1_label][1]
+            mlat2 = m_coords_dict[n2_label][1]
+
+            if mlat1>mlat2:
+                    edge_counter_dict[edge_time]['ns'] += 1
+            elif mlat2> mlat1:
+                    edge_counter_dict[edge_time]['sn'] += 1
+
+        ratio_dict = {}
+        ns_dict = {}
+        sn_dict = {}
+        for time, v in edge_counter_dict.items():
+            ns_dict[time] = v['ns']
+            sn_dict[time] = v['sn']
+            if v['sn']==0:
+                ratio_dict[time]= 0
+            else:
+                ratio_dict[time] = v['ns']/v['sn']
+
+        ratio = self.dict_to_pd_df(ratio_dict,'total')                       
+        ns = self.dict_to_pd_df(ns_dict,'total')
+        sn = self.dict_to_pd_df(sn_dict,'total')
+        return ratio, ns, sn
 
 
     def t_snapshot_dist(self, times:list) -> dict:
 
         deg_dists = {}
         for t in times:
-            nearest_t = self.t_close(t)
-            deg_dists[nearest_t] = Counter()
+            deg_dists[t] = Counter()
 
         for edge in self.edge_list:
             edge_time = edge[2]['attr_dict']['UTC']
@@ -482,4 +663,4 @@ class NetDistr:
             dict_pcp[t] = np.array(ts[powers[band]].values)
         return dict_pcp
 
-    
+
