@@ -486,7 +486,8 @@ class NetDistr:
             
             if abs(mlon1 - mlon2) <= 2:
                 edge_counter_dict[edge_time]['conj'] += 1
-            elif mlat1>0 and mlat2<0:
+
+            if mlat1>0 and mlat2<0:
                 edge_counter_dict[edge_time]['n-s'] += 1
             elif mlat2>0 and mlat1<0:
                 edge_counter_dict[edge_time]['n-s'] += 1
@@ -624,6 +625,69 @@ class NetDistr:
             if edge_time in deg_dists.keys():
                 deg_dists[edge_time][edge[0]] += 1
                 deg_dists[edge_time][edge[1]] += 1
+
+        for t in deg_dists.keys():
+            deg_dists[t] = Counter(list(deg_dists[t].values()))
+
+        return deg_dists
+
+    def t_snapshot_dist_mlt(self, times:list, mlt_lower_lim) -> dict:
+        geo_cords = self.geo_coords_dict()
+        m_coords_dict = self.mag_coords_dict()
+
+        deg_dists = {}
+        deg_dists2 = {}
+        for t in times:
+            deg_dists[t] = Counter()
+            deg_dists2[t] = Counter()
+
+        for edge in self.edge_list:
+            edge_time = edge[2]['attr_dict']['UTC']
+            if edge_time in deg_dists.keys():
+                n1_name = edge[0].split('_')[0]
+                n2_name = edge[1].split('_')[0]
+                glon1 = geo_cords[n1_name][0]
+                glon2 = geo_cords[n2_name][0]
+                mlat1 = m_coords_dict[n1_name][1]
+                mlat2 = m_coords_dict[n2_name][1]
+                dt = datetime.strptime(edge_time,'%Y-%m-%d %H:%M:%S')
+                utc_hours = np.round(dt.hour + dt.minute/60, 2)
+                geo_north_lon = -72
+                mlt1 = (24 + (utc_hours + (glon1 + geo_north_lon)/15))
+                mlt2 = (24 + (utc_hours + (glon2 + geo_north_lon)/15))
+                mltrange = abs(mlt1-mlt2)
+                if mlt_lower_lim < mltrange:
+                    deg_dists[edge_time][edge[0]] += 1
+                    deg_dists[edge_time][edge[1]] += 1
+                    if mlat1>0 and mlat2<0:
+                        deg_dists2[edge_time][edge[0]] += 1
+                        deg_dists2[edge_time][edge[1]] += 1
+                    elif mlat1<0 and mlat2>0:
+                        deg_dists2[edge_time][edge[0]] += 1
+                        deg_dists2[edge_time][edge[1]] += 1        
+        for t in deg_dists.keys():
+            deg_dists[t] = Counter(list(deg_dists[t].values()))
+        for t in deg_dists2.keys():
+            deg_dists2[t] = Counter(list(deg_dists2[t].values()))
+        # short mlt and ns_short_mlt
+        return deg_dists, deg_dists2
+
+    def t_snapshot_dist_chain(self, times:list) -> dict:
+        m_coords_dict = self.mag_coords_dict()
+        deg_dists = {}
+        for t in times:
+            deg_dists[t] = Counter()
+
+        for edge in self.edge_list:
+            edge_time = edge[2]['attr_dict']['UTC']
+            if edge_time in deg_dists.keys():
+                n1_name = edge[0].split('_')[0]
+                n2_name = edge[1].split('_')[0]
+                mlon1 = m_coords_dict[n1_name][0]
+                mlon2 = m_coords_dict[n2_name][0]
+                if abs(mlon1 - mlon2) <= 2:
+                    deg_dists[edge_time][n1_name] += 1
+                    deg_dists[edge_time][n2_name] += 1
 
         for t in deg_dists.keys():
             deg_dists[t] = Counter(list(deg_dists[t].values()))
