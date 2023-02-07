@@ -143,11 +143,11 @@ def time_arr_from_unix(station_dict:dict ,comp:str, start_datetime:str, end_date
     '''retrun array of indices and times from unix start and end times from the begining of the year in seconds '''
     year = start_datetime.split('-')[0]
     unix_year = time.mktime(datetime.strptime(year, "%Y").timetuple())
-    unix_start_time = unix_year + station_dict['stime'] 
-    unix_end_time = unix_year + station_dict['etime']
+    unix_start_time = unix_year + station_dict['begin_time'] 
+    unix_end_time = unix_year + station_dict['begin_time'] + len(station_dict['n']) -1
     start_time_str = datetime.utcfromtimestamp(unix_start_time).strftime('%Y-%m-%d %H:%M:%S') 
     end_time_str = datetime.utcfromtimestamp(unix_end_time).strftime('%Y-%m-%d %H:%M:%S')
-    all_times = pd.Series(pd.date_range(start_time_str, end_time_str, len(station_dict['e1'])))
+    all_times = pd.Series(pd.date_range(start_time_str, end_time_str, len(station_dict['n'])))
     relevent_times = all_times[all_times.between(start_datetime, end_datetime)]
     relevent_indices = relevent_times.index.tolist()
     return relevent_times, relevent_indices
@@ -194,7 +194,7 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
     # ensure stepsize is an integer
     step_size_a = step_size_a.astype(np.int32)
     # loop to calculate values for each of four Pc bands
-    for i in [0,1]:
+    for i in [0]:
         # minimum window size 2xperiod for xcor
         # first step always whole window size
         t_start = 0
@@ -334,7 +334,7 @@ def network_append(s1name:str, s1:np.array, s2name:str, s2:np.array, times:list,
             elif xcval<0:
                 undir_net_antiphase[i].add_edge(f'{s1name}_{j}', f'{s2name}_{j}', attr_dict = edge_attr(j,'NA', time, lag))
             
-def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str, year:str, wave_amp_cutof:list, tlcc_thresh:float)-> list:
+def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str, wave_amp_cutof:list, tlcc_thresh:float)-> list:
     '''function to create both a directed and undirected global netowrk from data for componenet comp n,e or z,
     Geomagnetic coordinates> (magnetic north (n), magnetic east (e) and vertical down (z)) 
     appling the xcor-peaks-finding and network appending function, network_append different pairs of stations combinatorially
@@ -344,7 +344,6 @@ def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str
     print(start_datetime, end_datetime)
     # to locate analysis files
     file_path = f'networks_data/{year}'
-    
     global undir_net_inphase
     global undir_net_antiphase
     global dir_net_t1
@@ -355,69 +354,66 @@ def network_global(save_path:str, comp:str, start_datetime:str, end_datetime:str
     undir_net_inphase = [nx.Graph(),nx.Graph()]
     undir_net_antiphase =[nx.Graph(),nx.Graph()]
 
+    splt_str= start_datetime.split('-')[0:2]
+    year = splt_str[0]
+    month_year = '-'.join([splt_str[1],splt_str[0]])
+
+    fpath = f'networks_data/new_events/{month_year}'
     f_xml_read = lambda x: scipy.io.readsav(x, idict=None, python_dict=True, uncompressed_file_name=None, verbose=False)
-    # year = start_datetime.split('-')[0]
-    station_names = [f.split('_')[1] for f in listdir(file_path) if isfile(join(file_path, f))]
-    num_stations = len(station_names)
+    station_f_names = [f for f in listdir(fpath)]
+    nc2_station_f_names = list(itertools.combinations(station_f_names,2))
+    num_stations = len(station_f_names)
     print(num_stations)
-    nc2_labels = list(itertools.combinations(station_names,2))
-    time_reference_data = f_xml_read(f'{file_path}/{year}_{station_names[0]}_1s_final.xdr')
+    print(station_f_names[0])
+    # 6-21-12_2012_A08_1s_final
+    time_reference_data = f_xml_read(f'{fpath}/{station_f_names[0]}')
+    # print(time_reference_data)
     time_vals, time_indices = time_arr_from_unix(time_reference_data, comp, start_datetime, end_datetime)
-
-    for ind, label in tqdm(enumerate(nc2_labels),desc=f'out of {len(nc2_labels)} operations'):
-        # print(label,'station pair out of', num_stations,'stations with', ind,'out of',len(nc2_labels),'operations', comp)
-        dict_station_0 = f_xml_read(f'{file_path}/{year}_{label[0]}_1s_final.xdr')
-        dict_station_1 = f_xml_read(f'{file_path}/{year}_{label[1]}_1s_final.xdr')
-        # Asuumed lengths of both data are the same and data gaps hae been suitably added !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        s0_data = dict_station_0[f'{comp}1'][time_indices]
-        s1_data = dict_station_1[f'{comp}1'][time_indices]
-        network_append(label[0], s0_data, label[1], s1_data, time_vals, [20, 20, 1.5, 1.5], 
-            0.3, dict_station_0['gapidentifier'], wave_amp_cutof)
-
-    power_lab = f'{wave_amp_cutof[0]}_{wave_amp_cutof[1]}'
+    gapidentifier = 999999
+    # need to indentify quality of the data
+    count =0
+    for ind, label in tqdm(enumerate(nc2_station_f_names)):
+        # print(ind, label)
+        dict_station_0 = f_xml_read(f'{fpath}/{label[0]}')
+        dict_station_1 = f_xml_read(f'{fpath}/{label[1]}')
+        s0_data = dict_station_0[f'{comp}'][time_indices]
+        s1_data = dict_station_1[f'{comp}'][time_indices]
+        perc_gaps0 = np.count_nonzero(s0_data == gapidentifier)/len(s0_data)
+        perc_gaps1 = np.count_nonzero(s1_data == gapidentifier)/len(s0_data)
+        # print('perc of data gaps', perc_gaps)
+        if perc_gaps0>0.04 or perc_gaps1>0.04:
+            count=+1
+            continue
+        network_append(label[0].split('_')[2], s0_data, label[1].split('_')[2], s1_data, time_vals, [20], 
+            0.3, gapidentifier, wave_amp_cutof)
+    print('count',count)
+    s_path = f'/home/space/phrmfl/Shared/disk/_Users_sc_conda_envs_geomag/networks_data/{month_year}_nets/comp_{comp}'
+    path_exists = os.path.exists(s_path)
+    if not path_exists:
+      os.makedirs(s_path)
+    print(f"The new directory {s_path} is created!")
+    lab = f'{num_stations}_{month_year}'
     # need to add new labels for surrogate fuction
-    for i in [0,1]:
-        nx.write_edgelist(dir_net_t1[i], f'{save_path}/dir_net_t1{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}_new.txt')
-        nx.write_edgelist(dir_net_tn[i], f'{save_path}/dir_net_tn{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}_new.txt')            
-        nx.write_edgelist(undir_net_inphase[i], f'{save_path}/undir_net_inphase{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}_new.txt')
-        nx.write_edgelist(undir_net_antiphase[i], f'{save_path}/undir_net_antiphase{i}_surr_{comp}_{num_stations}_{tlcc_thresh}_{power_lab}_{year}_new.txt')
+    for i in [0]:
+        power_lab = f'{wave_amp_cutof[i]}'
+        nx.write_edgelist(dir_net_t1[i], f'{s_path}/dir_net_t1{i}_surr_{comp}_{power_lab}_{lab}.txt')
+        nx.write_edgelist(dir_net_tn[i], f'{s_path}/dir_net_tn{i}_surr_{comp}_{power_lab}_{lab}.txt')            
+        nx.write_edgelist(undir_net_inphase[i], f'{s_path}/undir_net_inphase{i}_surr_{comp}_{power_lab}_{lab}.txt')
+        nx.write_edgelist(undir_net_antiphase[i], f'{s_path}/undir_net_antiphase{i}_surr_{comp}_{power_lab}_{lab}txt')
 
 
-
-
-print('Enter event year, 2012, 2013, 2015:')
-year = input()
-# year=2015
-print('Enter event component:')
-comp = str(input())
+# print('Enter event year, 2012, 2013, 2015:')
+# year = input()
+# print('Enter event component:')
+comp = input()
+# comp='n'
 # print('Enter event network wave amp cutoff Pc2 (0.2,0.25):')
-# wave_amp_Pc2 = float(input())
-wave_amp_Pc2 = 0.25
-# print('Enter event network wave amp cutoff Pc3 (2,2.5):')
-# wave_amp_Pc3 = float(input())
-wave_amp_Pc3 =2.5
-wave_amp = [wave_amp_Pc2, wave_amp_Pc3]
-# print('Enter tlcc_threshold (0.4,0.5):')
-# tlcc_threshold = float(input())
-tlcc_threshold = 0.3
-# s_path = f'/Users/sc/conda_envs/geomag/networks_data/2012_nets/comp_e'
-s_path = f'/home/space/phrmfl/Shared/disk/_Users_sc_conda_envs_geomag/networks_data/{year}_nets/comp_{comp}'
-path_exists = os.path.exists(s_path)
-if not path_exists:
-  # Create a new directory because it does not exist 
-  os.makedirs(s_path)
-  print(f"The new directory {s_path} is created!")
+wave_amp = [0.28]
+# s_path = f'/Users/sc/conda_envs/geomag/networks_data/{year}_nets/comp_{comp}'
 
-# network_global(save_path = s_path ,comp= 'e', 
-#     start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 13:00:00',
-#     year='2012',wave_amp_cutof=[0.25, 2.5], tlcc_thresh = 0.3, dirnet_period_bin=True)
-# else: 
-if year == '2012':
-    # analysis file path jesper
-    network_global(save_path = s_path ,comp= comp, 
-        start_datetime='2012-01-21 20:00:00',end_datetime='2012-01-22 13:00:00',
-        year='2012',wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold)
-else: 
-        network_global(save_path = s_path ,comp= comp, 
-        start_datetime=f'{year}-03-17 4:00:00',end_datetime=f'{year}-03-17 12:00:00',
-        year=year, wave_amp_cutof=wave_amp, tlcc_thresh = tlcc_threshold)
+start_dt = '2012-09-30 08:00:00'
+end_dt = '2012-10-01 08:00:00'
+
+network_global(save_path = s_path ,comp= comp, 
+    start_datetime=start_dt,end_datetime=end_dt,
+    wave_amp_cutof=wave_amp, tlcc_thresh = 0.3)
