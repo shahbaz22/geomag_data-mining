@@ -1,6 +1,10 @@
-# Geomagnetic Data Mining
+# Global Dynamical Networks of Spatially Correlated ULF Wave Activity
 
 Network analysis of ULF geomagnetic pulsations (Pc1-Pc5) using ground magnetometer data from [SuperMAG](https://supermag.jhuapl.edu/).
+
+![Pc2 dynamical network evolution](plots/networks.gif)
+
+**Published paper:** [Global Dynamical Network of the Spatially Correlated Pc2 Wave Response for the 2015 St. Patrick's Day Storm](https://doi.org/10.1029/2022JA031175) — *Journal of Geophysical Research: Space Physics*, 2023
 
 ## Motivation
 
