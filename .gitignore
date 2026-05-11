@@ -1,12 +1,26 @@
-#geodata.py#
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Data files (large)
 20191128-17-05-supermag.csv
 20200121-17-21-supermag.csv
+
+# Media
 Gifspectrogram.mp4
 Signal.png
+
+# Legacy/unused
+#geodata.py#
 Single_station_magdata.ipynb
 ULFcheck.ipynb
-__pycache__/
 animation.py
 double_ax_example.py
 filter_example.py
