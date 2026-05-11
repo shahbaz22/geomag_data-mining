@@ -13,7 +13,7 @@ import numpy as np
 def compare_long_dist(new_data_folder_path:str, original_data_file:str, times_original_data:int, year:str)->None:
 
 	station_names = [f.split('_')[1] for f in listdir(new_data_folder_path) if isfile(join(new_data_folder_path, f))]
-	all_stations_data = pd.read_csv('supermag-stations.csv')
+	all_stations_data = pd.read_csv('data/supermag-stations.csv')
 	longitudes = all_stations_data[all_stations_data['IAGA'].isin(station_names)][['IAGA','GEOLON']]
 
 	orig_stations_data = pd.read_csv(original_data_file)
@@ -47,7 +47,7 @@ def compare_long_dist(new_data_folder_path:str, original_data_file:str, times_or
 
 # print(datetime.utcfromtimestamp(unix_start_time).strftime('%Y-%m-%d %H:%M:%S'))
 # print(datetime.utcfromtimestamp(unix_end_time).strftime('%Y-%m-%d %H:%M:%S')
-stations_data = pd.read_csv('supermag-stations.csv')
+stations_data = pd.read_csv('data/supermag-stations.csv')
 path = 'networks_data/2012'
 station_names = [f.split('_')[1] for f in listdir(path) if isfile(join(path, f))]
 counter_dict = {}

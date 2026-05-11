@@ -1,3 +1,4 @@
+"""Geographic network visualisation with community detection using Cartopy and igraph."""
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -12,11 +13,13 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import os
 from os import listdir
 from os.path import isfile, join
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "network_analysis"))
 from NetDistr import NetDistr
 import string
-
+import igraph as ig
 # import community
-# station_data = pd.read_csv('supermag-stations.csv')
+# station_data = pd.read_csv('data/supermag-stations.csv')
 # station_data.set_index('IAGA', inplace=True)
 # mag_coords_dict1 = {}
 # mag_coords_dict2 = {}
@@ -57,7 +60,7 @@ class DrawNetwork:
         self.ordered_times = sorted(list(set(all_times)))
         self.n = n
         self.directed = directed
-        self.station_data = pd.read_csv('supermag-stations.csv')
+        self.station_data = pd.read_csv('data/supermag-stations.csv')
         self.station_data.set_index('IAGA', inplace=True)
         self.stations_dict = self.station_data.T.to_dict('list')
         self.geomag_poles_coord = geomag_poles_coord
@@ -128,16 +131,26 @@ class DrawNetwork:
         deg_dist_mlt, deg_dist_mlt_ns =  self.dist.t_snapshot_dist_mlt([target_time],4)
         deg_dist_chain =  self.dist.t_snapshot_dist_chain([target_time])
         ax = self.fig.add_subplot(gridspec)
-        ax.bar(deg_dist_chain[target_time].keys(), deg_dist_chain[target_time].values(), width=1, color='blue', alpha=0.9)
-        ax.bar(deg_dist1[target_time].keys(), deg_dist1[target_time].values(), width=1.0, color='green', alpha=0.9)
-        ax.bar(deg_dist_mlt_ns[target_time].keys(), deg_dist_mlt_ns[target_time].values(), width=1, color='purple', alpha=0.85)
-        ax.bar(deg_dist_mlt[target_time].keys(), deg_dist_mlt[target_time].values(), width=1, color='orange', alpha=0.7)
+        
+        degree_freq ={}
+        c = ['green','orange','purple', 'blue']
+        labs = ['f_all','f_mlt','f_mlt_ns','f_chains']
+        for ind, val in enumerate([deg_dist1, deg_dist_mlt, deg_dist_mlt_ns, deg_dist_chain]):
+            y_vals = np.array(list(val[target_time].values()))
+            x_vals = np.array(list(val[target_time].keys()))
+            degree_freq[labs[ind]] = zip(x_vals, y_vals)
 
+        df = pd.DataFrame(index=np.arange(1,100), columns=[labs])
+        for key, value in degree_freq.items():
+            for degree, freq in value:
+                df.loc[degree, key] = freq
+
+
+        df.plot(kind='bar', stacked=True, ax=ax, width=1, xticks=[0,25,50,75,100], color=c, rot=0)
+        ax.get_legend().remove()
         ax.set_ylabel('frequency')
         ax.set_xlabel('degree')
         ax.grid()
-        ax.set_xlim(xlims)
-        ax.set_ylim(ylims) 
         return ax
 
     # def cluster_mlt(self, G:nx.Graph, date_time:str):
@@ -233,9 +246,9 @@ class DrawNetwork:
         # ax.legend(loc='upper center',ncol=1, bbox_to_anchor=[1.3, 1.1])
         g1 = map_proj.transform_point(g_phis[0],90, src_crs=source_proj)
         g2 = map_proj.transform_point(g_phis[1],-90, src_crs=source_proj)
-        ax.axvspan(g1[0], g2[0], alpha=0.5, color='black')
+        ax.axvspan(g1[0], g2[0], alpha=0.3, color='black')
     
-    def cartopy_ax_geomag(self, gridspec: plt.figure, date_time: str, G:nx.Graph, available_stations:list, counts:dict):
+    def cartopy_ax_geomag(self, gridspec: plt.figure, date_time: str, G:nx.Graph, available_stations:list, counts:dict, communites:list):
         year = self.date.split('-')[0]
         dt = datetime.strptime(date_time,'%Y-%m-%d %H:%M:%S')
         source_proj = ccrs.PlateCarree() 
@@ -253,19 +266,14 @@ class DrawNetwork:
         lons, lats = self.edge_lon_lat_lists(G, pos)
         # could speed up code by chosing edges not in short mlt range
         for i in range(0, len(lons), 2):
-            ax.plot(lons[i:i+2], lats[i:i+2], transform=ccrs.Geodetic(), color='green', alpha=0.7)
+            ax.plot(lons[i:i+2], lats[i:i+2], transform=ccrs.Geodetic(), color='green', alpha=0.8)
+        color = ['r','b','pink','purple','black','brown']
         if self.cluster==True:
-            lons_mlt, lats_mlt = self.edge_lon_lat_lists(self.sub_G_mlt, pos)
-            for i in range(0, len(lons_mlt), 2):
-                ax.plot(lons_mlt[i:i+2], lats_mlt[i:i+2], transform=ccrs.Geodetic(), color='orange', alpha=0.7)
+            for ind, clust in enumerate(communites):
+                lons, lats = self.edge_lon_lat_lists(G.subgraph(clust), pos)
+                for i in range(0, len(lons), 2):
+                    ax.plot(lons[i:i+2], lats[i:i+2], transform=ccrs.Geodetic(), color=color[ind], alpha=0.8)
 
-            lons_mlt_ns, lats_mlt_ns = self.edge_lon_lat_lists(self.sub_G_mlt_ns, pos)
-            for i in range(0, len(lons_mlt), 2):
-                ax.plot(lons_mlt_ns[i:i+2], lats_mlt_ns[i:i+2], transform=ccrs.Geodetic(), color='purple', alpha=0.7)
-
-            lons_chain, lats_chain = self.edge_lon_lat_lists(self.sub_G_chain, pos)
-            for i in range(0, len(lons_chain), 2):
-                ax.plot(lons_chain[i:i+2], lats_chain[i:i+2], transform=ccrs.Geodetic(), color='blue', alpha=1)
 
         self.G_all_stations.remove_nodes_from(list(G.nodes()))
         nx.draw_networkx_nodes(G = self.G_all_stations, pos = pos, nodelist = self.G_all_stations.nodes(), node_color='black', alpha = 1, node_size=5, ax = ax)
@@ -273,7 +281,7 @@ class DrawNetwork:
         self.plot_mlt(ax, dt, source_proj)
         return ax
 
-    def cartopy_ax_geographic(self, gridspec: plt.figure, date_time: str, G:nx.Graph, available_stations:list, proj: str, counts:dict, label:str):
+    def cartopy_ax_geographic(self, gridspec: plt.figure, date_time: str, G:nx.Graph, available_stations:list, proj: str, counts:dict, communites:list):
         year = self.date.split('-')[0]
         gn_lat, gn_lon  = self.geomag_poles_coord[int(year)]['north']
         gs_lat, gs_lon = self.geomag_poles_coord[int(year)]['south']
@@ -282,8 +290,7 @@ class DrawNetwork:
         if proj == 'globe':
             map_proj = ccrs.PlateCarree(central_longitude=gn_lon)
             ax = self.fig.add_subplot(gridspec, projection = map_proj)
-            # title = ax.text(0.5,1.05, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5}, transform=ax.transAxes, ha="center")
-            # title.set_text(f'{label}\n{date_time} UTC')
+
         elif proj == 'south_pole':
             map_proj = ccrs.Orthographic(central_longitude=gs_lon, central_latitude=gs_lat)
             ax = self.fig.add_subplot(gridspec, projection = map_proj)
@@ -294,7 +301,7 @@ class DrawNetwork:
         ax.add_feature(cfeature.GSHHSFeature(edgecolor='k'))
         ax.add_feature(Nightshade(dt, alpha=0.4))
         ax.gridlines(source_proj, xlocs=np.linspace(-180,180,11), linestyle='--', draw_labels=False)
-        ax.scatter(x=[gn_lon,gs_lon], y=[gn_lat,gs_lat], color="orange", s=100,alpha=1, transform=source_proj)
+        # ax.scatter(x=[gn_lon,gs_lon], y=[gn_lat,gs_lat], color="orange", s=100,alpha=1, transform=source_proj)
         pos = {station: (map_proj.transform_point(v['GEOLON'], v['GEOLAT'], src_crs=source_proj))
            for station, v in
            available_stations.to_dict('index').items()}
@@ -302,16 +309,17 @@ class DrawNetwork:
         freqs = np.array(freqs)*0.01
         self.G_all_stations.remove_nodes_from(list(G.nodes()))
         nx.draw_networkx_nodes(G = self.G_all_stations, pos = pos, nodelist = self.G_all_stations.nodes(), node_color='black', alpha = 1, node_size=5, ax = ax)
-        nx.draw_networkx_nodes(G = G, pos = pos, nodelist = G.nodes(), node_color='r', alpha = 0.7, node_size=freqs, ax = ax)
+        nx.draw_networkx_nodes(G = G, pos = pos, nodelist = G.nodes(), node_color='r', alpha = 1, node_size=freqs, ax = ax)
         nx.draw_networkx_edges(G = G, pos = pos, edge_color='g',
         alpha=1, arrows = self.directed, ax = ax, nodelist = G.nodes())
+        color = ['r','b','pink','purple','black','brown']
         if self.cluster==True:
-            nx.draw_networkx_edges(G = self.sub_G_mlt, pos = pos, edge_color='orange',
-            alpha=1, arrows = self.directed, ax = ax, nodelist = self.sub_G_mlt.nodes())
-            nx.draw_networkx_edges(G = self.sub_G_mlt_ns, pos = pos, edge_color='purple',
-            alpha=1, arrows = self.directed, ax = ax, nodelist = self.sub_G_mlt.nodes())
-            nx.draw_networkx_edges(G = self.sub_G_chain, pos = pos, edge_color='blue',
-            alpha=1, arrows = self.directed, ax = ax, nodelist = self.sub_G_chain.nodes())
+            for ind, clust in enumerate(communites):
+                # lons, lats = self.edge_lon_lat_lists(G.subgraph(clust), pos)
+                nx.draw_networkx_edges(G = G.subgraph(clust), pos = pos, edge_color=color[ind],
+                alpha=1, arrows = self.directed, ax = ax, nodelist = G.subgraph(clust).nodes())                
+                # for i in range(0, len(lons), 2):
+                #     ax.plot(lons[i:i+2], lats[i:i+2], transform=map_proj, color=color[ind], alpha=0.8)
         return ax
 
     def t_snapshot(self, target_time: str, label:str, index:int, save=False) -> None:
@@ -326,9 +334,28 @@ class DrawNetwork:
         else:
             G = nx.Graph(t_edge_list)
 
-        if self.cluster == True:
-            self.sub_G_mlt, self.sub_G_mlt_ns = self.cluster_mlt(G, target_time)
-            self.sub_G_chain = self.cluster_chain(G)
+        g = ig.Graph()
+        g.add_vertices(list(G.nodes()))
+        g.add_edges(list(G.edges()))
+        # print(g)
+
+        # calculate dendrogram
+        # dendrogram = g.community_edge_betweenness(directed=False)
+        # dendrogram= g.community_walktrap(weights=None, steps=4)
+        dendrogram = g.community_fastgreedy()
+        # convert it into a flat clustering
+        clusters = dendrogram.as_clustering()
+        # print(dendrogram)
+        # print(clusters)
+        clust_arr = []
+        for i in range(len(clusters)):
+            clust = g.vs[clusters[i]]['name']
+            if len(clust)>1:
+                clust_arr.append(clust)
+        # print(g.modularity(clusters,weights=None))
+        print(target_time)
+        print(clusters.modularity)
+
 
 
         reshaped_edge_list = np.reshape(t_edge_list, len(t_edge_list)*2)
@@ -336,22 +363,25 @@ class DrawNetwork:
         # print(stations)
         counts = Counter(reshaped_edge_list)
         avail_stations = self.station_data        
-        ax1 = self.cartopy_ax_geographic(self.gs[0,0], date_time=target_time, G=G, available_stations=avail_stations, 
-            counts=counts, label = label, proj='south_pole')
-        ax2 = self.plot_deg_dist(self.gs[0,2], target_time, xlims=[0,100], ylims=[0,35])
-        ax3 = self.cartopy_ax_geographic(self.gs[0,4], date_time=target_time, G=G, available_stations=avail_stations, 
-            counts=counts, label = label, proj='north_pole')
-        ax41 = self.cartopy_ax_geomag(self.gs[1,0:], date_time=target_time, G=G, available_stations=avail_stations, 
-            counts=counts)
+        # ax1 = self.cartopy_ax_geographic(self.gs[0,0], date_time=target_time, G=G, available_stations=avail_stations, 
+        #     counts=counts, proj='south_pole', communites=clust_arr)
+        
+        # ax2 = self.plot_deg_dist(self.gs[0,2], target_time, xlims=[0,100], ylims=[0,35])
+        
+        # ax3 = self.cartopy_ax_geographic(self.gs[0,4], date_time=target_time, G=G, available_stations=avail_stations, 
+        #     counts=counts, proj='north_pole', communites=clust_arr)
+        
+        # ax41 = self.cartopy_ax_geomag(self.gs[1,0:], date_time=target_time, G=G, available_stations=avail_stations, 
+        #     counts=counts, communites=clust_arr)
 
-        for n, ax in enumerate([ax1,ax2,ax3,ax41]):
-            ax.text(-0.1, 1.1, string.ascii_lowercase[n], transform=ax.transAxes, 
-                    size=16, weight='bold')
+        # for n, ax in enumerate([ax1,ax2,ax3,ax41]):
+        #     ax.text(-0.1, 1.1, string.ascii_lowercase[n], transform=ax.transAxes, 
+        #             size=16, weight='bold')
 
-        if save==True:     
-            # plt.savefig(f'plots/movie_plots/t_snap_{label}_{index}.png')
-            hr_min_sec = target_time.split(' ')[1]
-            plt.savefig(f'plots/t_snap_{label}_{self.comp}_{hr_min_sec}_{len(stations)}.png')
+        # if save==True:     
+        #     # plt.savefig(f'plots/movie_plots/t_snap_{label}_{index}.png')
+        #     hr_min_sec = target_time.split(' ')[1]
+        #     plt.savefig(f'plots/t_snap_{label}_{self.comp}_{hr_min_sec}_{len(stations)}.png')
 
         # plt.show()
         plt.clf()
@@ -432,20 +462,18 @@ fhandel = f'{stations_num}_0.3_0.25_2.5_{year}.txt'
 # conn_rangest1 = [[10,20],[80,105]]
 # conn_rangest2  = [[10,30]]
 # 11:15:00 Bz becomes negative again
-times = [ '04:47:50', '05:50:00','06:45:00','08:18:20','09:15:00','09:33:00' ]
+times = [ '08:18:20','09:15:00','09:33:00' ]
 # times for e comp
-# times = ['09:33:00']
+# times = ['04:47:50']
 # # times for e and z comp
-# times = ['09:15:00','09:33:00']
+# times = ['08:18:20','09:15:00']
 
 for comp in ['n']:
     path = f'networks_data/{year}_nets/comp_{comp}/'
     i=0
     for t in times:
-        # t = t.split(' ')[1]
         for net_type in ['undir_net_inphase']:
                 if i ==1:
-                    conn_range = [30,50]
                     drawnet = DrawNetwork(f'{path}combined_net{i}.txt',
                      128, comp, geomag_poles_coord=dict_geomag_poles, directed=False, cluster=False, stations=stations)
                     label = 'combined_net'

@@ -1,18 +1,21 @@
+"""Butterworth bandpass filtering for ULF pulsation band isolation."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fftpack import fft
 from scipy import signal
 # fuctions for plotting
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "cross_correlation"))
 from crosscor_bp2 import dateftutc, dateflocal, apexd
 
-md=pd.read_csv('20200121-17-21-supermag.csv')
+md=pd.read_csv('data/20200121-17-21-supermag.csv')
 md.head()
 
 md.dtypes
 
 # label data
-ld = pd.read_csv('supermag-stations.csv', delimiter=',')
+ld = pd.read_csv('data/supermag-stations.csv', delimiter=',')
 
 longg = float(ld['RAN'].iloc[0])
 latt = float(ld['RAN'].iloc[1])

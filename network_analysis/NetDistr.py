@@ -1,3 +1,4 @@
+"""Network distribution analysis: degree distributions, lag distributions, and geodesic distances."""
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -12,7 +13,7 @@ class NetDistr:
         G = nx.read_edgelist(edge_list_dir)
         self.edge_list = list(G.edges(data=True))
         self.n = n
-        station_data = pd.read_csv('supermag-stations.csv')
+        station_data = pd.read_csv('data/supermag-stations.csv')
         self.station_data = station_data.set_index('IAGA')
                 # 0 index is of key is GEOLON, 1 is GEOLAT, 2 MLON, 3 MLAT
         self.num_edges = len(self.edge_list)

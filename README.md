@@ -15,55 +15,71 @@ We build time-evolving networks from cross-correlation analysis of geomagnetic p
 ### Pipeline
 
 ```
-SuperMAG CSV data
-    -> Butterworth bandpass filter (isolate Pc1-Pc5 bands)
-    -> Windowed cross-correlation (station pairs)
-    -> Threshold significant correlations
-    -> Build NetworkX graphs (directed + undirected)
-    -> Analyse: community detection, degree distributions, temporal snapshots
-    -> Visualise on geographic maps (Cartopy)
+SuperMAG CSV data (data/)
+    -> Butterworth bandpass filter (signal_processing/)
+    -> Windowed cross-correlation (cross_correlation/)
+    -> Build NetworkX graphs (network_construction/)
+    -> Analyse: communities, degree distributions (network_analysis/)
+    -> Visualise on geographic maps (visualisation/)
 ```
 
 ## Setup
 
 ```bash
-pip install numpy pandas scipy matplotlib networkx dynetx python-igraph cartopy PyAstronomy tqdm
+pip install -r requirements.txt
 ```
 
 ## Usage
 
+All scripts are run from the project root:
+
 ```bash
 # Main network construction
-python networkx_pcmodel.py
+python network_construction/networkx_pcmodel.py
 
 # Parallel Pc power calculation
-python parallel_pc_power.py
+python network_construction/parallel_pc_power.py
 
 # Network with surrogate testing
-python surrogate_pc_net.py
+python network_construction/surrogate_pc_net.py
 
 # Read and analyse results
-python read_networks.py
+python network_analysis/read_networks.py
 
 # Geographic visualisation with communities
-python Drawnet_community.py
+python visualisation/Drawnet_community.py
+```
+
+## Project Structure
+
+```
+├── signal_processing/       # Bandpass filtering, zero-crossing, SNR
+├── cross_correlation/       # Windowed cross-correlation between station pairs
+├── network_construction/    # Build NetworkX graphs from correlations
+├── network_analysis/        # Read, analyse, and characterise networks
+├── visualisation/           # Geographic plots, distributions, network drawing
+├── notebooks/               # Jupyter notebooks for interactive exploration
+├── data/                    # SuperMAG station metadata and event CSVs
+├── plots/                   # Generated output plots
+├── exploratory/             # Test and playground scripts
+└── requirements.txt
 ```
 
 ## Data
 
-Download magnetometer time-series from [SuperMAG](https://supermag.jhuapl.edu/) as CSV. Station metadata is in `supermag-stations.csv`.
+Download magnetometer time-series from [SuperMAG](https://supermag.jhuapl.edu/) as CSV and place in `data/`. Station metadata is in `data/supermag-stations.csv`.
 
 ## Key Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `networkx_pcmodel.py` | Main network construction pipeline |
-| `parallel_pc_power.py` | Parallel Pc power spectral analysis |
-| `surrogate_pc_net.py` | Network construction with surrogate validation |
-| `Drawnet_community.py` | Geographic network plot with community detection |
-| `read_networks.py` | Network reading and property analysis |
-| `ULF_bp.py` | ULF bandpass filtering |
-| `NetDistr.py` | Network distribution analysis class |
+| `network_construction/networkx_pcmodel.py` | Main network construction pipeline |
+| `network_construction/parallel_pc_power.py` | Parallel Pc power spectral analysis |
+| `network_construction/surrogate_pc_net.py` | Network construction with surrogate validation |
+| `visualisation/Drawnet_community.py` | Geographic network plot with community detection |
+| `network_analysis/read_networks.py` | Network reading and property analysis |
+| `network_analysis/NetDistr.py` | Network distribution analysis class |
+| `signal_processing/ULF_bp.py` | ULF bandpass filtering |
 
 ## Author
 

@@ -1,3 +1,4 @@
+"""Cross-correlation utilities with bandpass filtering, date parsing, and coordinate transforms."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -133,13 +134,13 @@ def dateflocal(lon, date, ind):
     return date
 
 # time series data
-md = pd.read_csv('20200121-17-21-supermag.csv')
+md = pd.read_csv('data/20200121-17-21-supermag.csv')
 # header = 0 to remove title from dataset
-mdxc = pd.read_csv('20200722-17-06-supermag.csv', header = 0)
+mdxc = pd.read_csv('data/20200722-17-06-supermag.csv', header = 0)
 
 # print(mdxc.head)
 # label data
-ld = pd.read_csv('supermag-stations.csv', delimiter=',')
+ld = pd.read_csv('data/supermag-stations.csv', delimiter=',')
 
 # print(md.head())
 

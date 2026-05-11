@@ -1,3 +1,4 @@
+"""Windowed cross-correlation with Butterworth bandpass filtering."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,11 +50,11 @@ def forward(x):
 def inverse(x):
     return 1 /x
 
-md = pd.read_csv('20200121-17-21-supermag.csv')
+md = pd.read_csv('data/20200121-17-21-supermag.csv')
 print(md.head())
 
 # time series to be x correlated
-mdxc = pd.read_csv('20200722-17-06-supermag.csv', header = 0)
+mdxc = pd.read_csv('data/20200722-17-06-supermag.csv', header = 0)
 
 print(md.dtypes)
 # index can be used as seconds count
@@ -73,7 +74,7 @@ y22 = mdxc['dbe_nez']
 y33 = mdxc['dbz_nez']
 
 # label data
-ld = pd.read_csv('supermag-stations.csv', delimiter=',')
+ld = pd.read_csv('data/supermag-stations.csv', delimiter=',')
 
 longg = float(ld['RAN'].iloc[0])
 latt = float(ld['RAN'].iloc[1])

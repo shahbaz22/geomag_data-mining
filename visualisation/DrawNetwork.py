@@ -30,7 +30,7 @@
 #         self.ordered_times = sorted(list(set(all_times)))
 #         self.n = n
 #         self.directed = directed
-#         self.station_data = pd.read_csv('supermag-stations.csv')
+#         self.station_data = pd.read_csv('data/supermag-stations.csv')
 #         self.station_data.set_index('IAGA', inplace=True)
 #         self.geomag_poles_coord = geomag_poles_coord
 #         self.date = self.edge_list[0][2]['attr_dict']['UTC'].split(' ')[0]
@@ -246,10 +246,12 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import os
 from os import listdir
 from os.path import isfile, join
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "network_analysis"))
 from NetDistr import NetDistr
 import string
 
-# station_data = pd.read_csv('supermag-stations.csv')
+# station_data = pd.read_csv('data/supermag-stations.csv')
 # station_data.set_index('IAGA', inplace=True)
 # mag_coords_dict1 = {}
 # mag_coords_dict2 = {}
@@ -290,7 +292,7 @@ class DrawNetwork:
         self.ordered_times = sorted(list(set(all_times)))
         self.n = n
         self.directed = directed
-        self.station_data = pd.read_csv('supermag-stations.csv')
+        self.station_data = pd.read_csv('data/supermag-stations.csv')
         self.station_data.set_index('IAGA', inplace=True)
         self.geomag_poles_coord = geomag_poles_coord
         self.date = self.edge_list[0][2]['attr_dict']['UTC'].split(' ')[0]

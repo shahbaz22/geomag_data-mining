@@ -1,3 +1,4 @@
+"""Signal-to-noise ratio calculations for magnetometer signals."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

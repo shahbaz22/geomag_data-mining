@@ -1,3 +1,4 @@
+"""Read and analyse stored network outputs: degree, lag, and temporal distributions."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import dynetx as dn
@@ -352,11 +353,11 @@ def cluster_net():
 
 	# between longitude l1 and l2 create subgraph
 
-	station_data = pd.read_csv('supermag-stations.csv')
+	station_data = pd.read_csv('data/supermag-stations.csv')
 
 	# create a dataset with MLT and station name
 
-	station_data = pd.read_csv('20201111-18-30-supermag.csv')
+	station_data = pd.read_csv('data/20201111-18-30-supermag.csv')
 
 	# magnetic local time 0 is midnight 6 dawn, 12 noon, 18 dusk 
 

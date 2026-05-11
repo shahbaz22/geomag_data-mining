@@ -1,3 +1,4 @@
+"""Zero-crossing interpolation for refined signal timing using PyAstronomy."""
 import numpy as np
 import matplotlib.pylab as plt
 from PyAstronomy import pyaC

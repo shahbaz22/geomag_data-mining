@@ -1,3 +1,4 @@
+"""Network construction with surrogate-based statistical validation of correlations."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

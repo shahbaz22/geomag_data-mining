@@ -1,3 +1,4 @@
+"""Heatmap visualisation of network correlation matrices."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools

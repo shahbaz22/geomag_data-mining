@@ -12,6 +12,8 @@ import matplotlib.dates as mdates
 import pdb
 import matplotlib.ticker as mticker
 import pickle
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "network_analysis"))
 from NetDistr import NetDistr
 import seaborn as sb
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes

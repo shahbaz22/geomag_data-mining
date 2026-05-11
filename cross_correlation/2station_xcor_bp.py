@@ -162,13 +162,13 @@ def fperiod(y, cutoffh=0.2, viapeaks=False):
 
 
 # time series data
-md = pd.read_csv('20200121-17-21-supermag.csv')
+md = pd.read_csv('data/20200121-17-21-supermag.csv')
 # header = 0 to remove title from dataset
-mdxc = pd.read_csv('20200722-17-06-supermag.csv', header = 0)
+mdxc = pd.read_csv('data/20200722-17-06-supermag.csv', header = 0)
 
 # print(mdxc.head)
 # label data
-ld = pd.read_csv('supermag-stations.csv', delimiter=',')
+ld = pd.read_csv('data/supermag-stations.csv', delimiter=',')
 
 # print(md.head())
 
@@ -739,7 +739,7 @@ def maxlagdata( s1, s2 ):
 
 
 
-md = pd.read_csv('20201020-13-39-supermag.csv')
+md = pd.read_csv('data/20201020-13-39-supermag.csv')
 
 print(md.head())
 

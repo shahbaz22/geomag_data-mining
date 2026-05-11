@@ -1,3 +1,4 @@
+"""Surrogate data generation for statistical validation of network properties."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
