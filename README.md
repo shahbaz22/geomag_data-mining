@@ -1,16 +1,18 @@
-# Global Dynamical Networks of Spatially Correlated ULF Wave Activity
+# Characterising Extreme Space Weather Events Using Unsupervised Machine Learning: A Dynamical Network Approach
 
 Network analysis of ULF geomagnetic pulsations (Pc1-Pc5) using ground magnetometer data from [SuperMAG](https://supermag.jhuapl.edu/).
-
-![Pc2 dynamical network evolution](plots/networks.gif)
-
-**Published paper:** [Global Dynamical Network of the Spatially Correlated Pc2 Wave Response for the 2015 St. Patrick's Day Storm](https://doi.org/10.1029/2022JA031175) — *Journal of Geophysical Research: Space Physics*, 2023
 
 ## Motivation
 
 Extreme space weather events pose a significant risk to modern infrastructure, with potential economic impacts estimated in the trillions of dollars. Geomagnetically induced currents (GICs) can damage power grids, disrupt satellite operations, degrade GPS accuracy, and compromise communications systems. Understanding and characterising these events is critical for forecasting and mitigation.
 
 This project uses **spatiotemporal pattern analysis** to characterise extreme space weather events by studying how ULF (ultra-low frequency) geomagnetic pulsations propagate across networks of ground-based magnetometer stations. By identifying coherent oscillation patterns, community structures, and temporal evolution in station networks, we can better understand the large-scale dynamics of geomagnetic disturbances and work towards improved early warning systems.
+
+<p align="center">
+  <img src="plots/networks.gif" width="600" alt="Pc2 dynamical network evolution during the 2015 St. Patrick's Day storm">
+</p>
+
+**Published paper:** [Global Dynamical Network of the Spatially Correlated Pc2 Wave Response for the 2015 St. Patrick's Day Storm](https://doi.org/10.1029/2022JA031175) — *Journal of Geophysical Research: Space Physics*, 2023
 
 ## Approach
 
