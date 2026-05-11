@@ -1,3 +1,4 @@
+"""Geopack field-line tracing to compute L-shell (apex distance) for magnetometer stations."""
 # import matplotlib as mpl
 # from matplotlib import pyplot as plt
 # from matplotlib.patches import Wedge, Circle

@@ -1,3 +1,4 @@
+"""Legacy geographic network drawing script (superseded by Drawnet_community.py)."""
 # import numpy as np
 # import numpy as np
 # import pandas as pd

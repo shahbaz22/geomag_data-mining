@@ -1,3 +1,4 @@
+"""Two-station cross-correlation analysis with bandpass filtering and peak detection for network edge construction."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

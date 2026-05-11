@@ -1,3 +1,4 @@
+"""Network time-series plotting v2: extended sub-network parameter ratios and comparison plots."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools

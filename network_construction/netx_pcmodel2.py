@@ -1,3 +1,4 @@
+"""Network model v2: extended Pc network construction with MAT file ingestion and progress tracking."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

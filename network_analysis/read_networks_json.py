@@ -1,3 +1,4 @@
+"""Read and reconstruct dynamical networks from JSON-serialised dynetx graph files."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import dynetx as dn

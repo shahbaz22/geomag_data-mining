@@ -1,3 +1,4 @@
+"""Read networkx_pcmodel output files and compute temporal degree and lag distributions."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools

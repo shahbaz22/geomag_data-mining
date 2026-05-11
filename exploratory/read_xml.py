@@ -1,3 +1,4 @@
+"""Read and compare station data from XML/MAT formats with longitude distribution analysis."""
 import pandas as pd
 import pandas_read_xml as pdx
 import struct

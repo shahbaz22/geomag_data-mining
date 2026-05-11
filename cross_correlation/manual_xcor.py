@@ -1,3 +1,4 @@
+"""Manual cross-correlation implementation with Tukey windowing for testing and validation."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

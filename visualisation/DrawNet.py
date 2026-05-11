@@ -1,3 +1,4 @@
+"""Geographic network visualisation on Cartopy maps with degree distributions."""
 import numpy as np
 import pandas as pd
 import networkx as nx

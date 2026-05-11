@@ -1,3 +1,4 @@
+"""Pivot table construction from network edge lists for temporal station activity analysis."""
 import numpy as np
 import pandas as pd
 import networkx as nx

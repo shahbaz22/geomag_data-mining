@@ -1,3 +1,4 @@
+"""Network construction pipeline iteration: builds Pc networks from MAT file data with surrogate testing."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

@@ -1,3 +1,4 @@
+"""Reduced network model using dynetx dynamic graphs for Pc band analysis."""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

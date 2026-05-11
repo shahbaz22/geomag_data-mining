@@ -1,3 +1,4 @@
+"""Network time-series plotting: degree, lag, and connection count evolution over storm events."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools

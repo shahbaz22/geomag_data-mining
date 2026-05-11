@@ -1,3 +1,4 @@
+"""Distribution plotting for network properties: degree, lag, and geodesic distance histograms."""
 import networkx as nx
 import matplotlib.pyplot as plt
 import itertools
