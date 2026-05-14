@@ -14,6 +14,19 @@ This project uses **spatiotemporal pattern analysis** to characterise extreme sp
 
 **Published paper:** [Global Dynamical Network of the Spatially Correlated Pc2 Wave Response for the 2015 St. Patrick's Day Storm](https://doi.org/10.1029/2022JA031175) — *Journal of Geophysical Research: Space Physics*, 2023
 
+## Signal Processing and Time Series Methods
+
+This project applies advanced signal processing and time series analysis techniques to high-cadence (1-second) magnetometer data from 100+ globally distributed stations:
+
+- **Butterworth bandpass filtering** — Isolation of Pc2 wave activity (0.1–0.2 Hz) from broadband magnetometer signals using 4th-order IIR filters, separating geophysical signals of interest from instrument noise and other frequency bands
+- **Windowed cross-correlation** — Sliding-window normalised time-lagged cross-correlation between all station pairs (100s windows, 50% overlap), quantifying both coherence amplitude and propagation lag at sub-second precision
+- **Surrogate statistical testing** — Phase-randomised surrogate time series to establish null distributions and determine statistical significance of cross-correlations, rejecting spurious connections arising from bandpass-filtered coloured noise
+- **Signal-to-noise estimation** — Surrogate-estimated SNR (ratio of real network connections to surrogate connections) used to identify intervals of genuine coherent wave activity above the noise floor
+- **Peak detection and phase classification** — Extraction of cross-correlation extrema near zero lag to classify connections as in-phase, anti-phase, or directed (lagged), enabling decomposition into physically distinct sub-networks
+- **Multi-variate time series decomposition** — Independent analysis of three orthogonal magnetic field components (north, east, vertical) to resolve different polarisation modes and source mechanisms
+
+These methods enable construction of dynamical functional networks from raw time series — an approach also applicable to EEG/MEG neuroscience data, seismological arrays, financial time series, and other multi-sensor correlation problems.
+
 ## Approach
 
 We build time-evolving networks from cross-correlation analysis of geomagnetic pulsation signals across high-latitude magnetometer stations. Nodes represent stations; edges represent statistically significant coherence with associated time lags. The spatiotemporal structure of these networks reveals how energy propagates through the magnetosphere-ionosphere system during extreme events.
@@ -24,6 +37,7 @@ We build time-evolving networks from cross-correlation analysis of geomagnetic p
 SuperMAG CSV data (data/)
     -> Butterworth bandpass filter (signal_processing/)
     -> Windowed cross-correlation (cross_correlation/)
+    -> Surrogate statistical testing (network_construction/)
     -> Build NetworkX graphs (network_construction/)
     -> Analyse: communities, degree distributions (network_analysis/)
     -> Visualise on geographic maps (visualisation/)
